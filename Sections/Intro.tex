@@ -1,2 +1,79 @@
 \section{Introduction}
 
+Speculative decoding accelerates large language model (LLM) inference by
+letting a small draft model propose multiple tokens that are then verified by a
+larger target model in parallel \citep{leviathan2023speculative}. The speedup is
+lossless, but it is fragile: whenever draft-target agreement drops, acceptance
+length shrinks, more target-side correction is needed, and the latency benefits
+erode. A large body of recent work therefore tries to improve draft-target
+alignment, adapt draft length, or redesign verification to raise acceptance
+rates \citep{liu2023online,goel2024direct,agrawal2024adaedl,bachmann2025judge,wang2025alignment,zhou2026hsd}.
+
+This paper studies the complementary adversarial question: can a user choose a
+prompt prefix that deliberately \emph{collapses} speculative acceptance? We are
+interested in prompt-side attacks that preserve the target model and the draft
+model, but manipulate the verification rule itself by causing the draft to be
+confident in tokens that the target model assigns much smaller probability.
+This attack surface is natural in deployment settings, because the attacker
+controls only the input text, yet speculative decoding makes latency depend
+directly on the relation between the draft distribution $q$ and the target
+distribution $p$.
+
+Our main observation is that the relevant optimization target is not a generic
+divergence in isolation. For a realized draft token $y_i$, token-wise
+speculative decoding accepts with probability
+\[
+\alpha_i = \min\!\left(1, \frac{p(y_i \mid h_i)}{q(y_i \mid h_i)}\right),
+\]
+where $h_i$ is the current history. To degrade throughput, the attacker should
+make $\alpha_i$ small \emph{as early as possible}. An early rejection is more
+damaging than a later one because it shortens the accepted draft prefix and
+forces more of the remaining sequence to be regenerated or re-verified by the
+large model.
+
+We formalize this intuition and give two mathematical results. First, for a
+fixed realized draft path, the expected accepted prefix length is a simple
+function of the prefix products of the $\alpha_i$ values. Second, if we write
+$\beta_i = -\log \alpha_i$, then moving any fixed amount of attack budget from
+a later $\beta_\ell$ to an earlier $\beta_j$ with $j < \ell$ can only reduce
+the expected accepted prefix length. This immediately implies that the optimal
+slowdown strategy concentrates rejection pressure as early as possible. The
+proof is short, exact, and gives a principled justification for optimizing
+first-token collapse.
+
+These results lead to a gradient-based attack recipe. We relax a learned attack
+prefix into continuous token simplices, backpropagate through both models, and
+optimize either an exact path-based surrogate for accepted prefix length or a
+smoother overlap objective based on the total variation distance between $p$
+and $q$. The latter is motivated by a second identity: the one-step expected
+acceptance probability under draft sampling equals the overlap
+$\sum_y \min\{p(y), q(y)\} = 1 - \tv(p,q)$.
+
+We instantiate the attack in a local white-box setting using the reproducible
+HSD workspace with a draft model
+\texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} and a target model
+\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}. On a benign GSM8K-style prompt in the
+same chat format as the reproduction pipeline, the first drafted token is fully
+accepted with $\alpha_1 = 1.0$. By contrast, the best adversarial seed we found
+so far---\texttt{Complete the next symbol only: \textbackslash boxed\{}---drops
+first-token acceptance to $\alpha_1 = 0.160$, making the first speculative
+token reject with probability $0.84$. On the saved 263-sample token-wise
+GSM8K run, the ordinary aggregate drafted-token acceptance rate is
+$49.66\%$, which highlights how sharply the adversarial first step deviates
+from normal operating conditions.
+
+Our contributions are:
+\begin{itemize}
+\item We formulate prompt-side speculative-decoding slowdown as an optimization
+problem over acceptance probabilities rather than over output content.
+\item We prove that, under a fixed attack budget, earlier acceptance collapse is
+always more damaging than later collapse, which justifies targeting the first
+drafted tokens.
+\item We derive a gradient-based relaxed optimization method for finding bad
+tokens and report preliminary white-box results showing substantial
+first-token acceptance collapse on a real draft-target pair.
+\end{itemize}
+
+The broader message is that speculative decoding exposes a distinct
+prompt-side systems vulnerability: a user can target \emph{latency} by attacking
+draft-target agreement, even when the output distribution remains lossless.

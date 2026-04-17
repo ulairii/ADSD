@@ -1,1 +1,10 @@
 \appendix
+
+\section{Implementation Notes}
+
+Our local attack evaluation uses the same draft-target model pair as the HSD
+reproduction workspace and the same Qwen chat template as the GSM8K evaluator.
+The preliminary adversarial seeds were ranked by exact first-token acceptance
+using white-box access to both models. A separate search utility in the
+companion codebase evaluates prompt candidates and records the draft token,
+target probability, and divergence statistics for each seed.

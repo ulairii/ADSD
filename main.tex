@@ -51,10 +51,12 @@
 \usepackage{url}            % simple URL typesetting
 \usepackage{booktabs}       % professional-quality tables
 \usepackage{amsfonts}       % blackboard math symbols
+\usepackage{amssymb}
 \usepackage{nicefrac}       % compact symbols for 1/2, etc.
 \usepackage{microtype}      % microtypography
 \usepackage{xcolor}         % colors
 \usepackage{amsmath}
+\usepackage{amsthm}
 \usepackage{graphicx}
 \usepackage{array}
 \usepackage{tabularx}
@@ -63,7 +65,12 @@
 \makeatother
 
 % Note. For the workshop paper template, both \title{} and \workshoptitle{} are required, with the former indicating the paper title shown in the title and the latter indicating the workshop title displayed in the footnote.
-\title{TRENDSET: Neighborhood-Conditioned Descriptor Learning for Scientific Hotspot Description}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\newcommand{\tv}{\mathrm{TV}}
+
+\title{ADSD: Adversarial Deceleration of Speculative Decoding via Early-Rejection Prompt Optimization}
 
 
 % The \author macro works with any number of authors. There are two commands
@@ -90,7 +97,28 @@
 
 
 \begin{abstract}
-Automated clustering is essential for mapping the rapidly expanding landscape of scientific literature, yet these systems remain incomplete if the discovered semantic hotspots cannot be interpreted reliably. Existing topic labeling and keyphrase extraction pipelines typically summarize clusters in isolation, producing redundant descriptors that fail to resolve the boundaries between closely related subfields. We introduce \textsc{TRENDSET}, a neighborhood-conditioned descriptor learning framework that jointly predicts descriptor sets for a target hotspot and its local semantic neighbors. \textsc{TRENDSET} optimizes a coupled objective: an assignment signal that encourages downstream document routing utility, and a determinant-based diversity regularizer that discourages semantic collapse. Methodologically, TRENDSET treats descriptor learning as a structured neighborhood prediction problem and realizes it through neighborhood-conditioned generation, assignment-based discrimination, and learned reranking over candidate descriptor neighborhoods. We evaluate the framework on a public multi-domain benchmark built from \texttt{arXiv}, \texttt{bioRxiv}, and \texttt{medRxiv}. Lexical exact-match metrics continue to favor extractive-style baselines, while the aligned 4-way public reruns show that routing-oriented utility is highly sensitive to evaluation protocol and neighborhood-size matching. These results support hotspot description as a local boundary-drawing problem and motivate future human evaluation beyond proxy routing metrics.
+Speculative decoding speeds up large language model inference only when a draft
+model stays aligned with the target verifier. We study the opposite regime:
+prompt-side attacks that deliberately collapse speculative acceptance and
+thereby erase the latency benefit of lossless decoding. Our starting point is
+the token-wise acceptance rule
+$\alpha_i=\min(1,p(y_i\mid h_i)/q(y_i\mid h_i))$. We show that for a fixed
+realized draft path, the expected accepted prefix length equals
+$\sum_{k=1}^{\gamma}\prod_{i=1}^{k}\alpha_i$, and that under a fixed attack
+budget it is always optimal to move rejection pressure to earlier draft
+positions. This yields a simple mathematical principle: the most damaging bad
+token is the earliest possible one. We further derive a smooth one-step
+surrogate in which expected acceptance equals the overlap
+$1-\tv(p,q)$ between draft and target distributions, leading to a
+gradient-based relaxed prompt optimization method. In a local white-box setup
+with \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} drafting for
+\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, a benign GSM8K-style prompt has
+first-token acceptance $\alpha_1=1.0$, while the best adversarial seed we found
+so far drops to $\alpha_1=0.160$, causing an $84\%$ first-token rejection
+probability. On the saved 263-sample speculative GSM8K run, the ordinary
+aggregate drafted-token acceptance rate is $49.66\%$. These results identify a
+new prompt-side systems vulnerability for speculative decoding and provide the
+first mathematical foundation for gradient-based early-rejection attacks.
 \end{abstract}
 
 \input{Sections/Intro}
@@ -100,15 +128,16 @@ Automated clustering is essential for mapping the rapidly expanding landscape of
 
 \section{Conclusion}
 
-TRENDSET is built around a different prediction object from prior hotspot
-labeling work: it predicts a neighborhood of descriptor sets whose
-members jointly support local routing and resist semantic collapse. Across our
-experiments, extractive systems still dominate lexical distinctiveness, while
-the utility ranking becomes sensitive to the generator backbone and the exact
-routing protocol. These results suggest that
-scientific hotspot description is promising to study as a local decision
-problem with both distinctiveness and utility in view, while fuller validation
-will require human-centered evaluation.
+We introduced ADSD, a prompt-side attack view of speculative decoding. The
+mathematical core is simple but consequential: expected accepted prefix length
+is controlled by prefix products of acceptance probabilities, and any fixed
+amount of rejection pressure is more damaging when moved earlier. This yields a
+clear optimization target for adversarial prompt search and explains why
+first-token collapse is the right objective when the attacker wants to maximize
+fallback to the target model. Our preliminary experiments already show strong
+first-step degradation on a real draft-target pair. The next step is to run the
+full gradient-based search, extend evaluation to block-wise and hierarchical
+verifiers, and measure end-to-end latency degradation directly.
 
 \input{Sections/Appendix}
 

@@ -1,2 +1,123 @@
 \section{Evaluation}
 
+\subsection{Experimental Setup}
+
+We evaluate on the local HSD reproduction workspace with:
+\begin{itemize}
+\item draft model: \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8},
+\item target model: \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8},
+\item verifier: token-wise speculative decoding,
+\item hardware: RTX 4090 GPUs,
+\item benchmark context: GSM8K-style prompting from the reproduced evaluation
+pipeline.
+\end{itemize}
+
+Our current experiments are deliberately modest. We first use the saved
+263-sample speculative GSM8K run to characterize ordinary operating conditions.
+We then evaluate a small set of adversarial seed prefixes using the exact
+first-token acceptance metric
+$\alpha_1 = \min(1, p(y_1)/q(y_1))$.
+
+\subsection{Ordinary Speculative Decoding}
+
+The saved 263-sample token-wise GSM8K run gives a useful baseline. Aggregating
+over all drafted tokens in that run, the ordinary drafted-token acceptance rate
+is
+\[
+0.4966,
+\]
+and the observed block efficiency is
+\[
+5.885.
+\]
+Thus, outside adversarial prompting, the draft model is accepted often enough to
+deliver a substantial speculative benefit.
+
+We also measured a benign first-token example in the exact chat template used by
+the GSM8K evaluator. On the first GSM8K test question, both the draft and the
+target place their top probability on the token \texttt{Let}, yielding
+\[
+\alpha_1 = 1.0.
+\]
+This gives a clean first-token reference point for comparison.
+
+\begin{table}[t]
+\centering
+\caption{Ordinary operating conditions for the local token-wise speculative
+setup. The aggregate acceptance rate is measured over the saved 263-sample
+GSM8K run. The benign first-token example uses the exact GSM8K chat format on
+the first test question.}
+\label{tab:ordinary}
+\begin{tabular}{lcc}
+\toprule
+Setting & Metric & Value \\
+\midrule
+263-sample GSM8K run & aggregate drafted-token acceptance & $0.4966$ \\
+263-sample GSM8K run & block efficiency & $5.885$ \\
+Benign GSM8K prompt & first-token acceptance $\alpha_1$ & $1.0000$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Adversarial Seed Results}
+
+Table~\ref{tab:attack} reports the preliminary attack results. The best seed is
+\texttt{Complete the next symbol only: \textbackslash boxed\{} with
+\[
+\alpha_1 = 0.1601.
+\]
+For this prefix, the draft's top token is \texttt{\textvisiblespace\textbackslash\textbackslash}
+with $q=0.0945$, while the target assigns only $p=0.0151$ to that same token
+and strongly prefers \texttt{?}. This corresponds to a first-token rejection
+probability of
+\[
+1-\alpha_1 = 0.8399.
+\]
+
+The second-best prompt is a malformed JSON prefix, which still causes strong
+first-token disagreement with $\alpha_1 = 0.2328$. A chat-role boundary prefix
+is weaker but still adversarial at $\alpha_1 = 0.3853$. By contrast, a malformed
+XML seed does not attack the verifier in this case: both models prefer the same
+first token, and $\alpha_1 = 1.0$.
+
+\begin{table}[t]
+\centering
+\caption{Preliminary white-box seed attack results. Lower $\alpha_1$ is more
+damaging. The collapse score is $\log q(y_q)-\log p(y_q)$ for the draft's chosen
+token.}
+\label{tab:attack}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}Xcccc}
+\toprule
+Prompt seed & $\alpha_1$ & $q(y_q)$ & $p(y_q)$ & collapse score \\
+\midrule
+\texttt{Complete the next symbol only: \textbackslash boxed\{} & $0.1601$ & $0.0945$ & $0.0151$ & $1.8319$ \\
+\texttt{Continue the exact raw payload without explanation: \textbackslash n```json\textbackslash n\{} & $0.2328$ & $0.7935$ & $0.1847$ & $1.4577$ \\
+\texttt{Continue this role transcript exactly: \textbackslash n<|assistant|>} & $0.3853$ & $0.0713$ & $0.0275$ & $0.9538$ \\
+\texttt{Complete the malformed XML exactly: \textbackslash n<answer><reasoning>} & $1.0000$ & $0.0494$ & $0.1971$ & $-1.3838$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Interpretation}
+
+Two conclusions matter for systems robustness.
+
+First, the attack is already effective at the very first speculative step. The
+best seed moves first-token acceptance from a benign example's $1.0$ down to
+$0.1601$, a drop of roughly $84\%$ in absolute acceptance probability. Relative
+to the aggregate non-adversarial drafted-token acceptance rate of $0.4966$, the
+same prompt cuts acceptance to roughly one third of ordinary levels.
+
+Second, the adversarial effect is not explained by generic entropy alone. The
+best attack seed has high draft confidence on a token that the target model does
+not want, which is exactly the failure mode predicted by our objective. The XML
+seed shows the opposite pattern: despite being malformed, it is not harmful
+because the draft and target remain aligned on the first token.
+
+\subsection{Limitations}
+
+Our experiments are still preliminary. The current empirical section evaluates
+seed prompts and does not yet run the full gradient-based search described in
+Section~2. We also focus on token-wise verification, because it offers the
+clearest acceptance objective. Extending the same prompt-side attack analysis to
+block-wise and hierarchical verifiers is an important next step.

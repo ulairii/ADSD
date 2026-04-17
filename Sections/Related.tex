@@ -1,2 +1,42 @@
 \section{Related Work}
 
+\paragraph{Speculative decoding and acceptance bottlenecks.}
+Speculative decoding was introduced as a lossless way to accelerate
+autoregressive generation by verifying draft tokens in parallel with the target
+model \citep{leviathan2023speculative}. Subsequent work has improved the draft,
+the verifier, or the scheduling policy. Online Speculative Decoding adapts the
+draft to the observed query distribution to increase token acceptance
+\citep{liu2023online}. Direct alignment methods train draft models to better
+match chat-capable targets on plausible data distributions
+\citep{goel2024direct}. AdaEDL predicts when low acceptance is likely and stops
+drafting early \citep{agrawal2024adaedl}. Judge Decoding argues that model
+alignment alone is insufficient and redesigns verification to improve acceptance
+\citep{bachmann2025judge}. Alignment-augmented decoding uses training-free
+alignment sampling and flexible verification \citep{wang2025alignment}, while
+HSD pushes verification beyond token-wise acceptance by performing lossless
+hierarchical verification \citep{zhou2026hsd}.
+
+\paragraph{Why our setting is different.}
+These papers all treat low acceptance as a performance obstacle to be fixed.
+Our viewpoint is the inverse: low acceptance is the attack objective. Rather
+than training a better draft or verifier, we ask how a user-controlled prompt
+can maximize draft-target disagreement under the deployed system. To our
+knowledge, prior speculative-decoding work does not explicitly optimize prompt
+prefixes to minimize early acceptance probabilities.
+
+\paragraph{Prompt-based inference-cost attacks.}
+The closest attack-style prior art is prompt-based latency manipulation in
+ordinary autoregressive decoding. Engorgio constructs prompts that suppress
+\texttt{<EOS>} and induce abnormally long outputs, thereby increasing inference
+cost and threatening service availability \citep{dong2024engorgio}. This is
+related in spirit but differs in mechanism. Engorgio attacks output length in
+standard autoregressive generation. Our setting attacks the verification rule in
+speculative decoding by making draft proposals difficult to accept.
+
+\paragraph{Positioning.}
+The attack studied here lies at the intersection of systems efficiency and
+adversarial prompting. The speculative-decoding literature already establishes
+that throughput depends strongly on draft-target agreement. We turn that
+observation into a white-box prompt optimization problem and focus on the
+earliest verification events, where a single adversarial token can destroy the
+anticipated speculative speedup.

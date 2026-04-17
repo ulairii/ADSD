@@ -1,1 +1,222 @@
 \section{Method}
+
+\subsection{Setup}
+
+Let $x$ denote the user prompt, let $q$ be the draft model, let $p$ be the
+target model, and let $\gamma$ be the speculative draft length. At speculative
+step $i$, the current history is
+\[
+h_i = (x, y_{<i}),
+\]
+where $y_{<i}$ are the previously drafted tokens on the current verification
+path. Token-wise speculative decoding accepts a realized draft token $y_i$ with
+probability
+\[
+\alpha_i(x) = \min\!\left(1, \frac{p(y_i \mid h_i)}{q(y_i \mid h_i)}\right).
+\]
+
+Our attack inserts an adversarial prefix $z$ before the task prompt and seeks
+to slow the system down by minimizing the expected number of accepted draft
+tokens. We focus on prompt-side attacks only: the models and the verifier are
+fixed.
+
+\subsection{Expected Accepted Prefix Length}
+
+Let $L(z)$ denote the number of accepted speculative tokens in one verification
+round after prepending attack prefix $z$. Conditioning on a realized draft path
+$y_{1:\gamma}$, the verifier uses independent uniform random variables
+$u_i \sim \mathrm{Unif}[0,1]$ and accepts token $i$ iff all previous tokens were
+accepted and $u_i \le \alpha_i$.
+
+\begin{lemma}
+Conditioned on a fixed prompt $z$ and a fixed realized draft path $y_{1:\gamma}$,
+\[
+\Pr[L(z) \ge k \mid z, y_{1:\gamma}] = \prod_{i=1}^k \alpha_i(z)
+\quad\text{for } 1 \le k \le \gamma.
+\]
+Therefore,
+\[
+\mathbb{E}[L(z) \mid z, y_{1:\gamma}] =
+\sum_{k=1}^{\gamma} \prod_{i=1}^{k} \alpha_i(z).
+\]
+\end{lemma}
+
+\begin{proof}
+$L(z) \ge k$ occurs exactly when the verifier accepts tokens
+$1,\dots,k$. Because each acceptance event is
+$\{u_i \le \alpha_i\}$ and the $u_i$ are independent,
+\[
+\Pr[L(z) \ge k \mid z, y_{1:\gamma}] = \prod_{i=1}^k \Pr[u_i \le \alpha_i]
+ = \prod_{i=1}^k \alpha_i.
+\]
+Using $\mathbb{E}[L] = \sum_{k=1}^{\gamma}\Pr[L \ge k]$ completes the proof.
+\end{proof}
+
+Define the nonnegative rejection pressure
+\[
+\beta_i(z) = -\log \alpha_i(z).
+\]
+Then the previous expression becomes
+\[
+\mathbb{E}[L(z) \mid z, y_{1:\gamma}] =
+\sum_{k=1}^{\gamma} \exp\!\left(-\sum_{i=1}^{k} \beta_i(z)\right).
+\]
+This form makes the role of early rejection explicit: each $\beta_i$ affects
+all suffix terms whose indices are at least $i$.
+
+\subsection{Why the Earliest Bad Token Is Optimal}
+
+The user requirement is not merely to make some token hard to accept, but to
+make that collapse happen as early as possible so that more of the drafted block
+is wasted and more future work falls back to the target model.
+
+\begin{proposition}
+Let
+\[
+F(\beta_1,\dots,\beta_\gamma)
+  = \sum_{k=1}^{\gamma} \exp\!\left(-\sum_{i=1}^{k}\beta_i\right),
+\qquad \beta_i \ge 0.
+\]
+Fix any indices $j < \ell$ and any $\varepsilon \in (0,\beta_\ell]$. Define a
+new vector $\beta'$ by moving attack mass $\varepsilon$ from position $\ell$ to
+position $j$:
+\[
+\beta'_j = \beta_j + \varepsilon,\qquad
+\beta'_\ell = \beta_\ell - \varepsilon,\qquad
+\beta'_i = \beta_i \ \text{for } i \notin \{j,\ell\}.
+\]
+Then
+\[
+F(\beta') \le F(\beta).
+\]
+\end{proposition}
+
+\begin{proof}
+Let $S_k = \sum_{i=1}^{k}\beta_i$ and $S'_k = \sum_{i=1}^{k}\beta'_i$. Then:
+\[
+S'_k =
+\begin{cases}
+S_k, & k < j,\\
+S_k + \varepsilon, & j \le k < \ell,\\
+S_k, & k \ge \ell.
+\end{cases}
+\]
+Therefore, every term of $F$ with index $k \in \{j,\dots,\ell-1\}$ strictly
+shrinks by a factor $e^{-\varepsilon}$, while all other terms remain unchanged.
+Hence $F(\beta') \le F(\beta)$.
+\end{proof}
+
+\begin{corollary}
+Under a fixed total attack budget $\sum_{i=1}^{\gamma}\beta_i = B$, the minimum
+of $F$ is achieved by concentrating all budget at the earliest position:
+\[
+\beta_1 = B,\qquad \beta_2 = \cdots = \beta_\gamma = 0.
+\]
+\end{corollary}
+
+This is the central mathematical reason to target the first drafted tokens.
+Later collapse is always dominated by equally strong earlier collapse.
+
+\subsection{A Smooth One-Step Acceptance Identity}
+
+The exact path objective above depends on the realized draft token and therefore
+is awkward to optimize directly. Fortunately, the one-step expected acceptance
+under draft sampling has a clean overlap form.
+
+\begin{lemma}
+Let $q_i(\cdot \mid h_i)$ be the draft distribution and $p_i(\cdot \mid h_i)$
+the target distribution at step $i$. If $y_i \sim q_i(\cdot \mid h_i)$, then the
+expected acceptance probability is
+\[
+\bar{\alpha}_i
+= \sum_{y} q_i(y \mid h_i) \min\!\left(1, \frac{p_i(y \mid h_i)}{q_i(y \mid h_i)}\right)
+= \sum_{y} \min\{p_i(y \mid h_i), q_i(y \mid h_i)\}.
+\]
+Equivalently,
+\[
+\bar{\alpha}_i = 1 - \tv\!\bigl(p_i(\cdot \mid h_i), q_i(\cdot \mid h_i)\bigr),
+\]
+where $\tv(p,q) = \frac{1}{2}\|p-q\|_1$.
+\end{lemma}
+
+\begin{proof}
+For each token $y$,
+\[
+q_i(y)\min\!\left(1,\frac{p_i(y)}{q_i(y)}\right)=\min\{q_i(y),p_i(y)\}.
+\]
+Summing over $y$ gives the overlap form. The total variation identity is
+standard:
+\[
+\sum_y \min\{p(y),q(y)\} = 1 - \tfrac{1}{2}\|p-q\|_1.
+\]
+\end{proof}
+
+This identity shows why divergence-based surrogates are relevant, but it also
+clarifies that the most natural smooth objective is \emph{distributional
+overlap}, not merely forward KL.
+
+\subsection{Gradient-Based Prompt Optimization}
+
+We now derive a white-box optimization rule for finding bad tokens.
+
+\paragraph{Continuous relaxation.}
+Suppose the attacker may prepend $m$ tokens. For attack position $t$, let
+$u_t \in \Delta^{|V|}$ be a simplex vector over the vocabulary. With embedding
+matrix $E \in \mathbb{R}^{|V| \times d}$, the relaxed attack embedding is
+$e_t = u_t^\top E$. Collecting all positions gives
+$U = (u_1,\dots,u_m)$.
+
+\paragraph{Exact path surrogate.}
+Using a straight-through Gumbel-Softmax or HotFlip-style discrete projection,
+we obtain a discrete forward pass $\tilde{z}(U)$ and realized draft tokens
+$\tilde{y}_1,\dots,\tilde{y}_\gamma$. Define
+\[
+\tilde{\beta}_i(U)
+= \operatorname{softplus}\!\left(
+\log q(\tilde{y}_i \mid h_i(U)) - \log p(\tilde{y}_i \mid h_i(U))
+\right).
+\]
+The exact early-rejection surrogate is then
+\[
+\mathcal{L}_{\mathrm{path}}(U)
+= \sum_{k=1}^{\gamma}
+\exp\!\left(-\sum_{i=1}^{k}\tilde{\beta}_i(U)\right)
+ + \lambda m
+ + \eta \sum_{t=1}^{m} H(u_t),
+\]
+where minimizing the entropy term sharpens the relaxed tokens and $\lambda$
+penalizes long prefixes.
+
+\paragraph{Smooth overlap surrogate.}
+Because the exact path objective is noisy, we also propose the smoother
+first-order surrogate
+\[
+\mathcal{L}_{\mathrm{ovl}}(U)
+= \sum_{i=1}^{\gamma} w_i
+\Bigl(1 - \tv\bigl(p_i(\cdot \mid h_i(U)), q_i(\cdot \mid h_i(U))\bigr)\Bigr)
+ + \lambda m,
+\]
+with early weights
+\[
+w_i = \gamma - i + 1.
+\]
+These weights match the slowdown geometry: rejection at token $i$ shortens the
+accepted draft prefix for every suffix term $k \ge i$. The previous proposition
+shows that shifting attack mass earlier is always beneficial, so the linear
+weighting is a natural first-order relaxation around high-acceptance regions.
+
+\paragraph{Optimization rule.}
+Starting from an initial seed prefix, we alternate:
+\begin{enumerate}
+\item backpropagation through both models with either
+$\mathcal{L}_{\mathrm{path}}$ or $\mathcal{L}_{\mathrm{ovl}}$,
+\item projected gradient updates on $U$,
+\item discrete projection to a candidate token sequence,
+\item exact scoring with the real verifier objective.
+\end{enumerate}
+The best discrete prompt is selected by the exact accepted-prefix metric, not by
+the relaxed loss alone.
+
+In the current paper we provide the mathematical justification and preliminary
+seed-based white-box results. A full large-scale gradient search is the next
+experimental step.
