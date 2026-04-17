@@ -19,35 +19,41 @@ controls only the input text, yet speculative decoding makes latency depend
 directly on the relation between the draft distribution $q$ and the target
 distribution $p$.
 
-Our main observation is that the relevant optimization target is not a generic
-divergence in isolation. For a realized draft token $y_i$, token-wise
-speculative decoding accepts with probability
+The central technical obstacle is discrete. Gradient-based prompt optimization
+must operate over continuous token relaxations, but deployment requires a
+discrete projected prefix. The real question is therefore not whether one can
+write down a smooth surrogate, but when optimizing that surrogate provably
+produces a strong discrete attack after projection. That continuous-to-discrete
+gap is the main theoretical bottleneck for adversarial prompt search in this
+setting.
+
+Our starting point is the token-wise verifier acceptance rule
 \[
 \alpha_i = \min\!\left(1, \frac{p(y_i \mid h_i)}{q(y_i \mid h_i)}\right),
 \]
-where $h_i$ is the current history. To degrade throughput, the attacker should
-make $\alpha_i$ small \emph{as early as possible}. An early rejection is more
-damaging than a later one because it shortens the accepted draft prefix and
-forces more of the remaining sequence to be regenerated or re-verified by the
-large model.
+where $h_i$ is the current speculative history and $y_i$ is the draft token at
+step $i$. Under draft sampling, the one-step expected acceptance satisfies
+\[
+\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i),
+\]
+which immediately suggests a smooth attack objective: maximize early
+draft-target disagreement by maximizing weighted total variation. The
+mathematics becomes nontrivial at projection time. We first formalize a
+negative result, \emph{Prompt Waywardness}, showing that no unconditional
+nearest-neighbor projection guarantee is possible. We then prove that under a
+TV-Lipschitz assumption on the target and draft distributions, the projected
+discrete attack gap is bounded by two actionable quantities: the relaxed solver
+error and the projection distortion from the relaxed embedding back to the token
+manifold. This bound directly justifies the manifold-attraction penalty used in
+our optimization objective.
 
-We formalize this intuition and give two mathematical results. First, for a
-fixed realized draft path, the expected accepted prefix length is a simple
-function of the prefix products of the $\alpha_i$ values. Second, if we write
-$\beta_i = -\log \alpha_i$, then moving any fixed amount of attack budget from
-a later $\beta_\ell$ to an earlier $\beta_j$ with $j < \ell$ can only reduce
-the expected accepted prefix length. This immediately implies that the optimal
-slowdown strategy concentrates rejection pressure as early as possible. The
-proof is short, exact, and gives a principled justification for optimizing
-first-token collapse.
-
-These results lead to a gradient-based attack recipe. We relax a learned attack
-prefix into continuous token simplices, backpropagate through both models, and
-optimize either an exact path-based surrogate for accepted prefix length or a
-smoother overlap objective based on the total variation distance between $p$
-and $q$. The latter is motivated by a second identity: the one-step expected
-acceptance probability under draft sampling equals the overlap
-$\sum_y \min\{p(y), q(y)\} = 1 - \tv(p,q)$.
+These guarantees matter because they turn a heuristic attack recipe into a
+certified optimization framework. Instead of merely saying that total variation
+is a sensible surrogate, we show when the optimized relaxed prefix remains close
+to the optimal discrete adversarial prefix after projection. The resulting
+theory also gives the experiments concrete diagnostics to track: the relaxed
+objective value $C(U)$, the projection distortion $\rho(U)$, and the discrete
+margin that separates the best attack from its competitors.
 
 We instantiate the attack in a local white-box setting using the reproducible
 HSD workspace with a draft model
@@ -64,14 +70,18 @@ from normal operating conditions.
 
 Our contributions are:
 \begin{itemize}
-\item We formulate prompt-side speculative-decoding slowdown as an optimization
-problem over acceptance probabilities rather than over output content.
-\item We prove that, under a fixed attack budget, earlier acceptance collapse is
-always more damaging than later collapse, which justifies targeting the first
-drafted tokens.
-\item We derive a gradient-based relaxed optimization method for finding bad
-tokens and report preliminary white-box results showing substantial
-first-token acceptance collapse on a real draft-target pair.
+\item We formulate prompt-side speculative-decoding slowdown as a
+continuous-to-discrete adversarial optimization problem over verifier
+acceptance probabilities rather than over output content.
+\item We derive a smooth weighted-TV surrogate from the one-step speculative
+acceptance identity and prove a prompt waywardness impossibility result showing
+that unconditional projection guarantees cannot hold in general.
+\item We prove a relaxation-gap bound and an exact-recovery corollary under a
+TV-Lipschitz assumption, yielding a principled penalized objective that
+explicitly controls projection distortion.
+\item We report preliminary white-box results showing substantial first-token
+acceptance collapse on a real draft-target pair, establishing prompt-side
+acceptance collapse as a concrete systems vulnerability.
 \end{itemize}
 
 The broader message is that speculative decoding exposes a distinct

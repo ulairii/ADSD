@@ -1,222 +1,179 @@
-\section{Method}
+\section{Theoretical Framework: Continuous Relaxation and the Discrete Gap}
 
-\subsection{Setup}
+To systematically find adversarial prefixes, we rely on gradient-based
+optimization over continuous token embeddings. However, optimizing a continuous
+surrogate does not guarantee that its nearest discrete projection remains
+adversarial. In this section, we formalize the optimization objective,
+acknowledge the theoretical limits of unconditional projection, and establish
+the precise margin conditions under which our continuous-to-discrete pipeline is
+guaranteed to succeed.
 
-Let $x$ denote the user prompt, let $q$ be the draft model, let $p$ be the
-target model, and let $\gamma$ be the speculative draft length. At speculative
-step $i$, the current history is
+\subsection{Setup and the Smooth Overlap Surrogate}
+
+Let the attacker optimize a prefix of length $m$. A discrete prefix is a
+sequence $z = (z_1, \dots, z_m) \in \mathcal{V}^m$, where $\mathcal{V}$ is the
+vocabulary. Let $E \in \mathbb{R}^{|\mathcal{V}| \times d}$ denote the
+embedding matrix. We define a continuous relaxation
+$U = (u_1, \dots, u_m)$, where each $u_t \in \Delta^{|\mathcal{V}|}$ is a
+probability simplex vector. The relaxed embedding at position $t$ is
 \[
-h_i = (x, y_{<i}),
-\]
-where $y_{<i}$ are the previously drafted tokens on the current verification
-path. Token-wise speculative decoding accepts a realized draft token $y_i$ with
-probability
-\[
-\alpha_i(x) = \min\!\left(1, \frac{p(y_i \mid h_i)}{q(y_i \mid h_i)}\right).
+e_t(U) = E^\top u_t.
 \]
 
-Our attack inserts an adversarial prefix $z$ before the task prompt and seeks
-to slow the system down by minimizing the expected number of accepted draft
-tokens. We focus on prompt-side attacks only: the models and the verifier are
-fixed.
-
-\subsection{Expected Accepted Prefix Length}
-
-Let $L(z)$ denote the number of accepted speculative tokens in one verification
-round after prepending attack prefix $z$. Conditioning on a realized draft path
-$y_{1:\gamma}$, the verifier uses independent uniform random variables
-$u_i \sim \mathrm{Unif}[0,1]$ and accepts token $i$ iff all previous tokens were
-accepted and $u_i \le \alpha_i$.
-
-\begin{lemma}
-Conditioned on a fixed prompt $z$ and a fixed realized draft path $y_{1:\gamma}$,
+Let $p_i^U$ and $q_i^U$ denote the target and draft next-token distributions at
+speculative step $i$ under the relaxed prefix $U$. Drawing from the one-step
+expected acceptance identity $\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i)$, we
+define our smooth attack objective to maximize early draft-target disagreement:
 \[
-\Pr[L(z) \ge k \mid z, y_{1:\gamma}] = \prod_{i=1}^k \alpha_i(z)
-\quad\text{for } 1 \le k \le \gamma.
+C(U) = \sum_{i=1}^{\gamma} w_i \tv(p_i^U, q_i^U),
 \]
-Therefore,
+where $w_i = \gamma - i + 1$ linearly weights earlier tokens to maximize
+rejection pressure. The corresponding discrete objective is defined by
+restriction:
 \[
-\mathbb{E}[L(z) \mid z, y_{1:\gamma}] =
-\sum_{k=1}^{\gamma} \prod_{i=1}^{k} \alpha_i(z).
+C_d(z) := C(E(z)),
 \]
-\end{lemma}
+where $E(z)$ is the concatenated embedding sequence of the discrete tokens.
 
-\begin{proof}
-$L(z) \ge k$ occurs exactly when the verifier accepts tokens
-$1,\dots,k$. Because each acceptance event is
-$\{u_i \le \alpha_i\}$ and the $u_i$ are independent,
+To recover a deployable attack, we define the token-wise nearest-neighbor
+projection $\Pi(U) := (\Pi_1(U), \dots, \Pi_m(U))$, where
 \[
-\Pr[L(z) \ge k \mid z, y_{1:\gamma}] = \prod_{i=1}^k \Pr[u_i \le \alpha_i]
- = \prod_{i=1}^k \alpha_i.
+\Pi_t(U) = \arg\min_{v \in \mathcal{V}} \|e_t(U) - E_v\|_2.
 \]
-Using $\mathbb{E}[L] = \sum_{k=1}^{\gamma}\Pr[L \ge k]$ completes the proof.
-\end{proof}
+We quantify the continuous-to-discrete shift via the projection distortion
+$\rho(U)$:
+\[
+\rho(U) := \sum_{t=1}^{m} \|e_t(U) - E_{\Pi_t(U)}\|_2.
+\]
 
-Define the nonnegative rejection pressure
-\[
-\beta_i(z) = -\log \alpha_i(z).
-\]
-Then the previous expression becomes
-\[
-\mathbb{E}[L(z) \mid z, y_{1:\gamma}] =
-\sum_{k=1}^{\gamma} \exp\!\left(-\sum_{i=1}^{k} \beta_i(z)\right).
-\]
-This form makes the role of early rejection explicit: each $\beta_i$ affects
-all suffix terms whose indices are at least $i$.
+\subsection{The Obstruction of Prompt Waywardness}
 
-\subsection{Why the Earliest Bad Token Is Optimal}
+A critical vulnerability in gradient-based text attacks is the assumption that
+continuous optimization smoothly maps back to discrete space. We first state a
+negative result demonstrating that without structural assumptions, projection is
+fundamentally unsafe.
 
-The user requirement is not merely to make some token hard to accept, but to
-make that collapse happen as early as possible so that more of the drafted block
-is wasted and more future work falls back to the target model.
-
-\begin{proposition}
-Let
-\[
-F(\beta_1,\dots,\beta_\gamma)
-  = \sum_{k=1}^{\gamma} \exp\!\left(-\sum_{i=1}^{k}\beta_i\right),
-\qquad \beta_i \ge 0.
-\]
-Fix any indices $j < \ell$ and any $\varepsilon \in (0,\beta_\ell]$. Define a
-new vector $\beta'$ by moving attack mass $\varepsilon$ from position $\ell$ to
-position $j$:
-\[
-\beta'_j = \beta_j + \varepsilon,\qquad
-\beta'_\ell = \beta_\ell - \varepsilon,\qquad
-\beta'_i = \beta_i \ \text{for } i \notin \{j,\ell\}.
-\]
-Then
-\[
-F(\beta') \le F(\beta).
-\]
+\begin{proposition}[Prompt Waywardness]
+\label{prop:waywardness}
+For any finite token embedding space with at least two tokens and any
+$\delta > 0$, there exists a smooth objective $C$ over the convex hull of token
+embeddings and a relaxed optimizer $U^*$ such that $U^*$ is within distance
+$\delta$ of a discrete token cell, yet the nearest-neighbor projection
+$\Pi(U^*)$ is arbitrarily suboptimal among all discrete prefixes.
 \end{proposition}
 
-\begin{proof}
-Let $S_k = \sum_{i=1}^{k}\beta_i$ and $S'_k = \sum_{i=1}^{k}\beta'_i$. Then:
+This proposition formalizes the empirical warning signs from prior literature:
+an unconditional projection guarantee is impossible. To bind the discrete gap,
+we must constrain the behavior of the specific model distributions.
+
+\subsection{Bounding the Projection Gap}
+
+To guarantee attack transferability from continuous to discrete space, we assume
+the generative distributions exhibit Lipschitz continuity with respect to the
+input embeddings.
+
+\begin{assumption}[TV-Lipschitzness]
+\label{assump:tv-lipschitz}
+For each speculative step $i$, there exist constants $L_i^p, L_i^q$ such that
+for any two relaxed prefixes $U, V$,
 \[
-S'_k =
-\begin{cases}
-S_k, & k < j,\\
-S_k + \varepsilon, & j \le k < \ell,\\
-S_k, & k \ge \ell.
-\end{cases}
+\tv(p_i^U, p_i^V) \le L_i^p \|U - V\|_{2,1},
 \]
-Therefore, every term of $F$ with index $k \in \{j,\dots,\ell-1\}$ strictly
-shrinks by a factor $e^{-\varepsilon}$, while all other terms remain unchanged.
-Hence $F(\beta') \le F(\beta)$.
+\[
+\tv(q_i^U, q_i^V) \le L_i^q \|U - V\|_{2,1},
+\]
+where
+\[
+\|U - V\|_{2,1} := \sum_{t=1}^{m} \|e_t(U) - e_t(V)\|_2.
+\]
+Let
+\[
+L_C := \sum_{i=1}^{\gamma} w_i (L_i^p + L_i^q)
+\]
+denote the aggregate Lipschitz constant of the weighted objective.
+\end{assumption}
+
+Under this assumption, we can strictly bound the quality degradation incurred
+during projection.
+
+\begin{theorem}[Relaxation Gap for Early Acceptance Collapse]
+\label{thm:relax-gap}
+Let $U^*$ be an $\varepsilon$-optimal solution of the relaxed problem, such
+that
+\[
+C(U^*) \ge \sup_U C(U) - \varepsilon.
+\]
+Let
+\[
+z^* \in \arg\max_{z \in \mathcal{V}^m} C_d(z)
+\]
+be the optimal discrete prefix. Then the projected discrete attack satisfies
+\[
+C_d(\Pi(U^*)) \ge C_d(z^*) - \varepsilon - L_C \rho(U^*).
+\]
+\end{theorem}
+
+\begin{proof}
+By Assumption~\ref{assump:tv-lipschitz} and the triangle inequality, $C$ is
+$L_C$-Lipschitz. Let
+$\hat{z} = \Pi(U^*)$. Because the continuous embeddings of $\hat{z}$ are within
+$\rho(U^*)$ of $U^*$, it follows that
+\[
+C_d(\hat{z}) = C(E(\hat{z})) \ge C(U^*) - L_C \rho(U^*).
+\]
+Since the optimal discrete prompt is a valid feasible solution in the relaxed
+space,
+\[
+C(U^*) \ge C_d(z^*) - \varepsilon.
+\]
+Combining these inequalities yields the bound.
 \end{proof}
 
-\begin{corollary}
-Under a fixed total attack budget $\sum_{i=1}^{\gamma}\beta_i = B$, the minimum
-of $F$ is achieved by concentrating all budget at the earliest position:
+Theorem~\ref{thm:relax-gap} establishes that the discrete attack gap is
+controlled by only two
+actionable quantities: the optimization error of the relaxed solver
+($\varepsilon$) and the distance from the relaxed solution to the token
+manifold ($\rho(U^*)$).
+
+We can further characterize when the continuous relaxation exactly recovers the
+globally optimal discrete attack. Let the discrete attack margin be defined as
 \[
-\beta_1 = B,\qquad \beta_2 = \cdots = \beta_\gamma = 0.
+\Gamma := C_d(z^*) - \max_{z \neq z^*} C_d(z).
+\]
+
+\begin{corollary}[Exact Recovery under Discrete Margin]
+\label{cor:exact-recovery}
+Assume the optimal discrete adversarial prefix $z^*$ is unique
+($\Gamma > 0$). Under Theorem~\ref{thm:relax-gap}, if the combined optimization
+error and
+projection distortion is strictly less than the discrete margin,
+\[
+\varepsilon + L_C \rho(U^*) < \Gamma,
+\]
+then the nearest-neighbor projection perfectly identifies the optimal discrete
+attack:
+\[
+\Pi(U^*) = z^*.
 \]
 \end{corollary}
 
-This is the central mathematical reason to target the first drafted tokens.
-Later collapse is always dominated by equally strong earlier collapse.
+\subsection{Algorithm Design Justification}
 
-\subsection{A Smooth One-Step Acceptance Identity}
-
-The exact path objective above depends on the realized draft token and therefore
-is awkward to optimize directly. Fortunately, the one-step expected acceptance
-under draft sampling has a clean overlap form.
-
-\begin{lemma}
-Let $q_i(\cdot \mid h_i)$ be the draft distribution and $p_i(\cdot \mid h_i)$
-the target distribution at step $i$. If $y_i \sim q_i(\cdot \mid h_i)$, then the
-expected acceptance probability is
+The theoretical bounds above directly dictate our optimization strategy. To
+maximize the discrete adversarial effect $C_d(\Pi(U))$, we cannot simply
+maximize $C(U)$. We must explicitly minimize the projection gap
+$L_C \rho(U)$. Consequently, our gradient-based search optimizes the following
+penalized objective:
 \[
-\bar{\alpha}_i
-= \sum_{y} q_i(y \mid h_i) \min\!\left(1, \frac{p_i(y \mid h_i)}{q_i(y \mid h_i)}\right)
-= \sum_{y} \min\{p_i(y \mid h_i), q_i(y \mid h_i)\}.
+\max_U \; C(U) - \lambda \rho(U) - \tau \sum_{t=1}^{m} H(u_t),
 \]
-Equivalently,
-\[
-\bar{\alpha}_i = 1 - \tv\!\bigl(p_i(\cdot \mid h_i), q_i(\cdot \mid h_i)\bigr),
-\]
-where $\tv(p,q) = \frac{1}{2}\|p-q\|_1$.
-\end{lemma}
+where $\lambda \rho(U)$ acts as a manifold-attraction penalty to explicitly
+bound the gap in Theorem~\ref{thm:relax-gap}, and the entropy regularization
+sharpens the simplex vectors so the optimizer explores regions near discrete
+token boundaries.
 
-\begin{proof}
-For each token $y$,
-\[
-q_i(y)\min\!\left(1,\frac{p_i(y)}{q_i(y)}\right)=\min\{q_i(y),p_i(y)\}.
-\]
-Summing over $y$ gives the overlap form. The total variation identity is
-standard:
-\[
-\sum_y \min\{p(y),q(y)\} = 1 - \tfrac{1}{2}\|p-q\|_1.
-\]
-\end{proof}
-
-This identity shows why divergence-based surrogates are relevant, but it also
-clarifies that the most natural smooth objective is \emph{distributional
-overlap}, not merely forward KL.
-
-\subsection{Gradient-Based Prompt Optimization}
-
-We now derive a white-box optimization rule for finding bad tokens.
-
-\paragraph{Continuous relaxation.}
-Suppose the attacker may prepend $m$ tokens. For attack position $t$, let
-$u_t \in \Delta^{|V|}$ be a simplex vector over the vocabulary. With embedding
-matrix $E \in \mathbb{R}^{|V| \times d}$, the relaxed attack embedding is
-$e_t = u_t^\top E$. Collecting all positions gives
-$U = (u_1,\dots,u_m)$.
-
-\paragraph{Exact path surrogate.}
-Using a straight-through Gumbel-Softmax or HotFlip-style discrete projection,
-we obtain a discrete forward pass $\tilde{z}(U)$ and realized draft tokens
-$\tilde{y}_1,\dots,\tilde{y}_\gamma$. Define
-\[
-\tilde{\beta}_i(U)
-= \operatorname{softplus}\!\left(
-\log q(\tilde{y}_i \mid h_i(U)) - \log p(\tilde{y}_i \mid h_i(U))
-\right).
-\]
-The exact early-rejection surrogate is then
-\[
-\mathcal{L}_{\mathrm{path}}(U)
-= \sum_{k=1}^{\gamma}
-\exp\!\left(-\sum_{i=1}^{k}\tilde{\beta}_i(U)\right)
- + \lambda m
- + \eta \sum_{t=1}^{m} H(u_t),
-\]
-where minimizing the entropy term sharpens the relaxed tokens and $\lambda$
-penalizes long prefixes.
-
-\paragraph{Smooth overlap surrogate.}
-Because the exact path objective is noisy, we also propose the smoother
-first-order surrogate
-\[
-\mathcal{L}_{\mathrm{ovl}}(U)
-= \sum_{i=1}^{\gamma} w_i
-\Bigl(1 - \tv\bigl(p_i(\cdot \mid h_i(U)), q_i(\cdot \mid h_i(U))\bigr)\Bigr)
- + \lambda m,
-\]
-with early weights
-\[
-w_i = \gamma - i + 1.
-\]
-These weights match the slowdown geometry: rejection at token $i$ shortens the
-accepted draft prefix for every suffix term $k \ge i$. The previous proposition
-shows that shifting attack mass earlier is always beneficial, so the linear
-weighting is a natural first-order relaxation around high-acceptance regions.
-
-\paragraph{Optimization rule.}
-Starting from an initial seed prefix, we alternate:
-\begin{enumerate}
-\item backpropagation through both models with either
-$\mathcal{L}_{\mathrm{path}}$ or $\mathcal{L}_{\mathrm{ovl}}$,
-\item projected gradient updates on $U$,
-\item discrete projection to a candidate token sequence,
-\item exact scoring with the real verifier objective.
-\end{enumerate}
-The best discrete prompt is selected by the exact accepted-prefix metric, not by
-the relaxed loss alone.
-
-In the current paper we provide the mathematical justification and preliminary
-seed-based white-box results. A full large-scale gradient search is the next
-experimental step.
+In practice, we use this smooth TV objective as the primary search target and
+retain exact verifier scoring only for final discrete candidate selection. This
+division matches the theory: the continuous optimization is certified through
+$C(U)$ and $\rho(U)$, while deployment still occurs in the exact discrete
+speculative-decoding pipeline.

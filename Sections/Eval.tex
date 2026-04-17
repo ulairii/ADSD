@@ -17,6 +17,11 @@ Our current experiments are deliberately modest. We first use the saved
 We then evaluate a small set of adversarial seed prefixes using the exact
 first-token acceptance metric
 $\alpha_1 = \min(1, p(y_1)/q(y_1))$.
+We do not yet claim that the current experiments exhaustively validate the full
+relaxed optimization pipeline; they establish the existence of the attack
+surface, quantify the scale of early acceptance collapse, and provide the
+baseline measurements needed for the theory-aligned diagnostics introduced in
+Section~3.
 
 \subsection{Ordinary Speculative Decoding}
 
@@ -114,10 +119,18 @@ not want, which is exactly the failure mode predicted by our objective. The XML
 seed shows the opposite pattern: despite being malformed, it is not harmful
 because the draft and target remain aligned on the first token.
 
+Third, these numbers should be interpreted as pilot evidence rather than as a
+complete evaluation. The key experimental gap is that we have not yet run the
+full large-scale relaxed search while tracking the theoretical quantities
+$C(U)$, $\rho(U)$, and the final discrete margin. We also have not yet measured
+transferability or stealth-constrained attacks. Those questions are essential
+for a more complete empirical validation of the theory.
+
 \subsection{Limitations}
 
 Our experiments are still preliminary. The current empirical section evaluates
 seed prompts and does not yet run the full gradient-based search described in
-Section~2. We also focus on token-wise verification, because it offers the
-clearest acceptance objective. Extending the same prompt-side attack analysis to
-block-wise and hierarchical verifiers is an important next step.
+Section~3. We also focus on token-wise verification, because it offers the
+clearest acceptance objective and the cleanest connection to the weighted-TV
+surrogate. Extending the same prompt-side attack analysis to block-wise and
+hierarchical verifiers is an important next step.

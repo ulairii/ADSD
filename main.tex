@@ -65,12 +65,13 @@
 \makeatother
 
 % Note. For the workshop paper template, both \title{} and \workshoptitle{} are required, with the former indicating the paper title shown in the title and the latter indicating the workshop title displayed in the footnote.
-\newtheorem{lemma}{Lemma}
-\newtheorem{proposition}{Proposition}
-\newtheorem{corollary}{Corollary}
 \newcommand{\tv}{\mathrm{TV}}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{assumption}[theorem]{Assumption}
 
-\title{ADSD: Adversarial Deceleration of Speculative Decoding via Early-Rejection Prompt Optimization}
+\title{ADSD: Prompt-Side Acceptance Collapse Attacks on Speculative Decoding}
 
 
 % The \author macro works with any number of authors. There are two commands
@@ -97,28 +98,28 @@
 
 
 \begin{abstract}
-Speculative decoding speeds up large language model inference only when a draft
-model stays aligned with the target verifier. We study the opposite regime:
-prompt-side attacks that deliberately collapse speculative acceptance and
-thereby erase the latency benefit of lossless decoding. Our starting point is
-the token-wise acceptance rule
-$\alpha_i=\min(1,p(y_i\mid h_i)/q(y_i\mid h_i))$. We show that for a fixed
-realized draft path, the expected accepted prefix length equals
-$\sum_{k=1}^{\gamma}\prod_{i=1}^{k}\alpha_i$, and that under a fixed attack
-budget it is always optimal to move rejection pressure to earlier draft
-positions. This yields a simple mathematical principle: the most damaging bad
-token is the earliest possible one. We further derive a smooth one-step
-surrogate in which expected acceptance equals the overlap
-$1-\tv(p,q)$ between draft and target distributions, leading to a
-gradient-based relaxed prompt optimization method. In a local white-box setup
-with \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} drafting for
+Speculative decoding accelerates large language model inference only when a
+small draft model remains well aligned with the large target verifier. We study
+the opposite regime: prompt-side inputs that deliberately collapse speculative
+acceptance and erase the latency benefit of lossless decoding. We formalize
+this attack as a continuous-to-discrete optimization problem over adversarial
+prompt prefixes. Using the one-step identity
+$\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i)$, we define a smooth weighted
+total-variation objective that targets early draft-target disagreement. We then
+show that an unconditional projection guarantee is impossible via a prompt
+waywardness proposition, and prove that under a TV-Lipschitz assumption the
+projected discrete attack gap is bounded by the relaxed optimization error plus
+an explicit projection-distortion term. This yields a principled penalized
+objective that directly minimizes the continuous-to-discrete relaxation gap. In
+a local white-box setup with
+\texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} drafting for
 \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, a benign GSM8K-style prompt has
-first-token acceptance $\alpha_1=1.0$, while the best adversarial seed we found
-so far drops to $\alpha_1=0.160$, causing an $84\%$ first-token rejection
+first-token acceptance $\alpha_1=1.0$, while the strongest adversarial seed we
+found so far drops to $\alpha_1=0.160$, causing an $84\%$ first-token rejection
 probability. On the saved 263-sample speculative GSM8K run, the ordinary
-aggregate drafted-token acceptance rate is $49.66\%$. These results identify a
-new prompt-side systems vulnerability for speculative decoding and provide the
-first mathematical foundation for gradient-based early-rejection attacks.
+aggregate drafted-token acceptance rate is $49.66\%$. We use these results to
+identify prompt-side acceptance collapse as a concrete systems vulnerability and
+to ground a mathematically justified attack objective for speculative decoding.
 \end{abstract}
 
 \input{Sections/Intro}
@@ -128,16 +129,17 @@ first mathematical foundation for gradient-based early-rejection attacks.
 
 \section{Conclusion}
 
-We introduced ADSD, a prompt-side attack view of speculative decoding. The
-mathematical core is simple but consequential: expected accepted prefix length
-is controlled by prefix products of acceptance probabilities, and any fixed
-amount of rejection pressure is more damaging when moved earlier. This yields a
-clear optimization target for adversarial prompt search and explains why
-first-token collapse is the right objective when the attacker wants to maximize
-fallback to the target model. Our preliminary experiments already show strong
-first-step degradation on a real draft-target pair. The next step is to run the
-full gradient-based search, extend evaluation to block-wise and hierarchical
-verifiers, and measure end-to-end latency degradation directly.
+We introduced ADSD, a prompt-side attack view of speculative decoding centered
+on the continuous-to-discrete relaxation gap. The theory section identifies the
+projection obstacle, proves that unconditional nearest-neighbor recovery is
+impossible, and shows that under TV-Lipschitz model behavior the projected
+discrete attack is controlled by relaxed optimization error and projection
+distortion. This directly justifies the manifold-attraction penalty in our
+optimization objective. The current experiments remain preliminary, but they
+already show that early-step acceptance collapse is substantial on a real
+draft-target pair. The most important next empirical step is to run the full
+relaxed search and track the theory-aligned diagnostics $C(U)$, $\rho(U)$, and
+the resulting discrete margin under token-wise and stronger verifiers.
 
 \input{Sections/Appendix}
 
