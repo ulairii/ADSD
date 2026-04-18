@@ -202,6 +202,16 @@ sees the same discrete token manifold that deployment will use, instead of
 optimizing a purely continuous embedding string that may not survive
 projection.
 
+While Theorem~\ref{thm:relax-gap} bounds the discrete gap using explicit
+$L_2$ nearest-neighbor projection in the embedding space, evaluating pairwise
+Euclidean distances across the full tokenizer vocabulary at every optimization
+step is computationally prohibitive. In the implementation, we therefore
+approximate the operational projection with a straight-through argmax estimator
+over the relaxed probability simplex. The theoretical connection is preserved
+by retaining the explicit $L_2$ projection-distortion penalty $\rho(U)$ in the
+continuous objective, which penalizes the distance between the relaxed
+soft-embeddings and the hard embeddings induced by the argmax-selected tokens.
+
 Model selection is also verifier-aligned. Although optimization uses the smooth
 objective $J(U)$, we keep the best candidate by its exact projected
 first-token acceptance
@@ -219,4 +229,10 @@ projection-distortion weight $\lambda$ is calibrated automatically from the
 initial ratio between the unpenalized objective and the initial projection
 distortion, then swept on Palmetto through a multiplicative factor. This
 calibration gives a stable way to compare attacks across different prefix
-lengths without hand-retuning the objective scale each time.
+lengths without hand-retuning the objective scale each time. Because the token
+embedding space is highly non-convex, initializing the relaxed prefix from a
+uniform distribution is unstable. We therefore warm-start the optimizer's
+initial logits from a manual adversarial seed and then search the full
+continuous vocabulary space around that initialization. In practice, the search
+often discovers subword fragments or visually unusual tokens that strictly
+outperform the original seed.
