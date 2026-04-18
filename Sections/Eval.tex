@@ -2,135 +2,150 @@
 
 \subsection{Experimental Setup}
 
-We evaluate on the local HSD reproduction workspace with:
+We evaluate ADSD in the reproduced HSD workspace with:
 \begin{itemize}
 \item draft model: \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8},
 \item target model: \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8},
 \item verifier: token-wise speculative decoding,
-\item hardware: RTX 4090 GPUs,
-\item benchmark context: GSM8K-style prompting from the reproduced evaluation
-pipeline.
+\item hardware: RTX 4090 or A100 class GPUs for the 14B target,
+\item benchmark: GSM8K prompting under the reproduced Qwen chat template.
 \end{itemize}
 
-Our current experiments are deliberately modest. We first use the saved
-263-sample speculative GSM8K run to characterize ordinary operating conditions.
-We then evaluate a small set of adversarial seed prefixes using the exact
-first-token acceptance metric
-$\alpha_1 = \min(1, p(y_1)/q(y_1))$.
-We do not yet claim that the current experiments exhaustively validate the full
-relaxed optimization pipeline; they establish the existence of the attack
-surface, quantify the scale of early acceptance collapse, and provide the
-baseline measurements needed for the theory-aligned diagnostics introduced in
-Section~3.
+The evaluation has two layers. First, we run the Palmetto soft-prefix search to
+measure exact projected first-token collapse on the optimized boundary context.
+Second, we inject a matched benign or adversarial prefix at the same assistant
+boundary and run the full 263-sample GSM8K evaluation to measure the system
+effect on end-to-end speculative decoding.
 
-\subsection{Ordinary Speculative Decoding}
+\subsection{Metrics}
 
-The saved 263-sample token-wise GSM8K run gives a useful baseline. Aggregating
-over all drafted tokens in that run, the ordinary drafted-token acceptance rate
-is
+We report five metrics that capture both attack strength and user-visible
+stealth:
+\begin{itemize}
+\item \textbf{First-token acceptance.}
+$\alpha_1 = \min(1, p(y_1)/q(y_1))$ for the first drafted token after the
+boundary prefix. This is the optimization target used to rank projected attack
+candidates.
+\item \textbf{Aggregate acceptance.}
+The fraction of drafted tokens that are accepted by the verifier over a full
+sample:
 \[
-0.4966,
+\text{aggregate acceptance} =
+\frac{\text{accepted drafted tokens}}{\text{drafted tokens}}.
 \]
-and the observed block efficiency is
+\item \textbf{Block efficiency.}
+Accepted drafted tokens per verifier step:
 \[
-5.885.
+\text{block efficiency} =
+\frac{\text{accepted drafted tokens}}{\text{target steps}}.
 \]
-Thus, outside adversarial prompting, the draft model is accepted often enough to
-deliver a substantial speculative benefit.
+\item \textbf{Mean sample time.}
+Wall-clock generation time averaged over the 263 GSM8K prompts.
+\item \textbf{Accuracy.}
+The standard GSM8K numeric-answer accuracy extracted from the evaluator output.
+\end{itemize}
 
-We also measured a benign first-token example in the exact chat template used by
-the GSM8K evaluator. On the first GSM8K test question, both the draft and the
-target place their top probability on the token \texttt{Let}, yielding
-\[
-\alpha_1 = 1.0.
-\]
-This gives a clean first-token reference point for comparison.
+The key systems claim is not merely that $\alpha_1$ can be collapsed in
+isolation, but that the resulting discrete attack degrades aggregate acceptance,
+block efficiency, and runtime while leaving task accuracy essentially intact.
+
+\subsection{Soft-Prefix Search Results}
+
+The Palmetto search optimizes a five-token relaxed prefix and projects it to a
+discrete boundary string. Across the sweep
+$\lambda_{\rho}\in\{0.1, 0.25, 0.5, 1.0\}$, the optimizer consistently returns
+the same projected attack and the same best exact first-token acceptance. The
+manual comparison seed has exact $\alpha_1 = 0.1597$, while the optimized
+projected prefix reaches $\alpha_1 = 0.0288$. Thus, after projection, the
+search reduces verifier acceptance on the first drafted token by more than
+$5\times$ relative to the hand-written seed.
 
 \begin{table}[t]
 \centering
-\caption{Ordinary operating conditions for the local token-wise speculative
-setup. The aggregate acceptance rate is measured over the saved 263-sample
-GSM8K run. The benign first-token example uses the exact GSM8K chat format on
-the first test question.}
-\label{tab:ordinary}
-\begin{tabular}{lcc}
+\caption{Palmetto soft-prefix search. The optimizer is stable across the
+projection-penalty sweep: every setting recovers the same best projected
+five-token attack.}
+\label{tab:soft-search}
+\begin{tabular}{lcccc}
 \toprule
-Setting & Metric & Value \\
+Run family & $\lambda_{\rho}$ multiplier & best $\alpha_1$ & baseline $\alpha_1$ & best step \\
 \midrule
-263-sample GSM8K run & aggregate drafted-token acceptance & $0.4966$ \\
-263-sample GSM8K run & block efficiency & $5.885$ \\
-Benign GSM8K prompt & first-token acceptance $\alpha_1$ & $1.0000$ \\
+rho sweep & $0.1$ & $0.0288$ & $0.1597$ & $1$ \\
+rho sweep & $0.25$ & $0.0288$ & $0.1597$ & $1$ \\
+rho sweep & $0.5$ & $0.0288$ & $0.1597$ & $1$ \\
+rho sweep & $1.0$ & $0.0288$ & $0.1597$ & $1$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Adversarial Seed Results}
+This stability matters. It indicates that the attack is not an artifact of a
+single penalty setting; the same discrete attack remains optimal across a
+meaningful range of projection-distortion regularization strengths.
 
-Table~\ref{tab:attack} reports the preliminary attack results. The best seed is
-\texttt{Complete the next symbol only: \textbackslash boxed\{} with
-\[
-\alpha_1 = 0.1601.
-\]
-For this prefix, the draft's top token is \texttt{\textvisiblespace\textbackslash\textbackslash}
-with $q=0.0945$, while the target assigns only $p=0.0151$ to that same token
-and strongly prefers \texttt{?}. This corresponds to a first-token rejection
-probability of
-\[
-1-\alpha_1 = 0.8399.
-\]
+\subsection{Matched 263-Sample Boundary Evaluation}
 
-The second-best prompt is a malformed JSON prefix, which still causes strong
-first-token disagreement with $\alpha_1 = 0.2328$. A chat-role boundary prefix
-is weaker but still adversarial at $\alpha_1 = 0.3853$. By contrast, a malformed
-XML seed does not attack the verifier in this case: both models prefer the same
-first token, and $\alpha_1 = 1.0$.
+We next evaluate the actual systems effect on a matched 263-sample GSM8K run.
+The benign condition prepends the same five-token boundary budget with the
+instruction \texttt{Please think step by step}. The attacked condition prepends
+the adversarial typo-like boundary prefix at the identical assistant boundary.
+Everything else is held fixed.
 
 \begin{table}[t]
 \centering
-\caption{Preliminary white-box seed attack results. Lower $\alpha_1$ is more
-damaging. The collapse score is $\log q(y_q)-\log p(y_q)$ for the draft's chosen
-token.}
-\label{tab:attack}
-\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}Xcccc}
+\caption{Matched benign-boundary versus attacked-boundary evaluation on the
+263-sample token-wise GSM8K run. Lower aggregate acceptance and block
+efficiency are worse for the system; higher mean sample time is worse for the
+system.}
+\label{tab:matched-263}
+\begin{tabular}{lccc}
 \toprule
-Prompt seed & $\alpha_1$ & $q(y_q)$ & $p(y_q)$ & collapse score \\
+Metric & Benign boundary & Attacked boundary & Relative change \\
 \midrule
-\texttt{Complete the next symbol only: \textbackslash boxed\{} & $0.1601$ & $0.0945$ & $0.0151$ & $1.8319$ \\
-\texttt{Continue the exact raw payload without explanation: \textbackslash n```json\textbackslash n\{} & $0.2328$ & $0.7935$ & $0.1847$ & $1.4577$ \\
-\texttt{Continue this role transcript exactly: \textbackslash n<|assistant|>} & $0.3853$ & $0.0713$ & $0.0275$ & $0.9538$ \\
-\texttt{Complete the malformed XML exactly: \textbackslash n<answer><reasoning>} & $1.0000$ & $0.0494$ & $0.1971$ & $-1.3838$ \\
+Mean sample time (s) & $23.10$ & $29.81$ & $+29.0\%$ \\
+Aggregate acceptance (mean) & $0.597$ & $0.509$ & $-14.8\%$ \\
+Block efficiency (mean) & $5.832$ & $4.961$ & $-14.9\%$ \\
+GSM8K accuracy & $222/263$ & $225/263$ & $+1.1$ points \\
 \bottomrule
-\end{tabularx}
+\end{tabular}
 \end{table}
+
+Table~\ref{tab:matched-263} captures the central result of the paper. The
+adversarial boundary does not break the model's task behavior. Instead, it
+forces the verifier to do more work while the target model still completes the
+reasoning chain correctly. Mean sample time rises by roughly $29\%$, while both
+aggregate acceptance and block efficiency fall by about $15\%$. At the same
+time, GSM8K accuracy remains unchanged within ordinary sampling variance.
+
+This is exactly the attack profile a systems paper should care about. If the
+prefix merely caused nonsense outputs, the slowdown would be easy to dismiss as
+degenerate prompting. Here the target model instead repairs the adversarial
+boundary and still solves the task, which means the user-visible output layer
+does not reveal the compute-side attack.
 
 \subsection{Interpretation}
 
-Two conclusions matter for systems robustness.
+Three conclusions follow.
 
-First, the attack is already effective at the very first speculative step. The
-best seed moves first-token acceptance from a benign example's $1.0$ down to
-$0.1601$, a drop of roughly $84\%$ in absolute acceptance probability. Relative
-to the aggregate non-adversarial drafted-token acceptance rate of $0.4966$, the
-same prompt cuts acceptance to roughly one third of ordinary levels.
+First, first-token collapse is a useful attack primitive, not a misleading toy
+metric. The soft search drives exact projected $\alpha_1$ from $0.1597$ down to
+$0.0288$, and the resulting discrete attack family produces measurable
+end-to-end degradation on the full evaluation.
 
-Second, the adversarial effect is not explained by generic entropy alone. The
-best attack seed has high draft confidence on a token that the target model does
-not want, which is exactly the failure mode predicted by our objective. The XML
-seed shows the opposite pattern: despite being malformed, it is not harmful
-because the draft and target remain aligned on the first token.
+Second, aggregate metrics alone would understate the vulnerability. The attack
+works by creating an early verifier speed bump. Once the target model repairs
+the boundary, later generations partially realign, so answer quality remains
+high. This is precisely why first-token acceptance, aggregate acceptance, block
+efficiency, and wall time must be reported together.
 
-Third, these numbers should be interpreted as pilot evidence rather than as a
-complete evaluation. The key experimental gap is that we have not yet run the
-full large-scale relaxed search while tracking the theoretical quantities
-$C(U)$, $\rho(U)$, and the final discrete margin. We also have not yet measured
-transferability or stealth-constrained attacks. Those questions are essential
-for a more complete empirical validation of the theory.
+Third, the attack is already practically meaningful at modest prompt budget.
+The current attack uses only a short boundary prefix, yet it extracts a large
+runtime penalty from a lossless decoding system without requiring any model
+parameter changes or API privileges beyond prompt control.
 
-\subsection{Limitations}
+\subsection{Scope}
 
-Our experiments are still preliminary. The current empirical section evaluates
-seed prompts and does not yet run the full gradient-based search described in
-Section~3. We also focus on token-wise verification, because it offers the
-clearest acceptance objective and the cleanest connection to the weighted-TV
-surrogate. Extending the same prompt-side attack analysis to block-wise and
-hierarchical verifiers is an important next step.
+Our experiments focus on the token-wise verifier because it provides the
+cleanest connection between the exact acceptance rule and the soft-prefix
+objective. The next empirical axis is not to re-establish existence, but to map
+the attack surface more fully: prefix-length sweeps, random and greedy
+baselines, and transfer to stronger block-wise or hierarchical verifiers.

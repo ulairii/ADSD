@@ -50,23 +50,28 @@ our optimization objective.
 These guarantees matter because they turn a heuristic attack recipe into a
 certified optimization framework. Instead of merely saying that total variation
 is a sensible surrogate, we show when the optimized relaxed prefix remains close
-to the optimal discrete adversarial prefix after projection. The resulting
-theory also gives the experiments concrete diagnostics to track: the relaxed
-objective value $C(U)$, the projection distortion $\rho(U)$, and the discrete
-margin that separates the best attack from its competitors.
+to the optimal discrete adversarial prefix after projection. In the
+implementation, this theory becomes a straight-through soft-prefix optimizer
+that combines three verifier-aligned terms: a soft first-token collapse term
+that rewards draft overconfidence on tokens the target dislikes, a
+distribution-level disagreement term using TV and reverse KL, and a
+projection-distortion penalty that keeps the relaxed solution close to a
+deployable discrete prefix.
 
 We instantiate the attack in a local white-box setting using the reproducible
 HSD workspace with a draft model
 \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} and a target model
-\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}. On a benign GSM8K-style prompt in the
-same chat format as the reproduction pipeline, the first drafted token is fully
-accepted with $\alpha_1 = 1.0$. By contrast, the best adversarial seed we found
-so far---\texttt{Complete the next symbol only: \textbackslash boxed\{}---drops
-first-token acceptance to $\alpha_1 = 0.160$, making the first speculative
-token reject with probability $0.84$. On the saved 263-sample token-wise
-GSM8K run, the ordinary aggregate drafted-token acceptance rate is
-$49.66\%$, which highlights how sharply the adversarial first step deviates
-from normal operating conditions.
+\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}. Our Palmetto search consistently
+recovers the same projected five-token attack across a sweep of
+projection-penalty strengths, reducing exact first-token acceptance from
+$\alpha_1 = 0.1597$ for the manual comparison seed to $\alpha_1 = 0.0288$ on
+the optimized search context. We then move beyond isolated first-token
+measurements and evaluate a matched benign-boundary versus attacked-boundary
+setup on 263 GSM8K prompts. The attacked boundary raises mean sample time from
+$23.10$s to $29.81$s, lowers mean aggregate acceptance from $0.597$ to $0.509$,
+and reduces mean block efficiency from $5.832$ to $4.961$. Crucially, answer
+quality is preserved within noise: GSM8K accuracy is $222/263$ for the benign
+boundary and $225/263$ for the attacked boundary.
 
 Our contributions are:
 \begin{itemize}
@@ -79,9 +84,10 @@ that unconditional projection guarantees cannot hold in general.
 \item We prove a relaxation-gap bound and an exact-recovery corollary under a
 TV-Lipschitz assumption, yielding a principled penalized objective that
 explicitly controls projection distortion.
-\item We report preliminary white-box results showing substantial first-token
-acceptance collapse on a real draft-target pair, establishing prompt-side
-acceptance collapse as a concrete systems vulnerability.
+\item We implement a straight-through soft-prefix optimizer and show that its
+projected attacks materially degrade end-to-end speculative efficiency on a
+real draft-target pair, while leaving downstream GSM8K accuracy essentially
+unchanged.
 \end{itemize}
 
 The broader message is that speculative decoding exposes a distinct

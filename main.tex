@@ -103,23 +103,26 @@ small draft model remains well aligned with the large target verifier. We study
 the opposite regime: prompt-side inputs that deliberately collapse speculative
 acceptance and erase the latency benefit of lossless decoding. We formalize
 this attack as a continuous-to-discrete optimization problem over adversarial
-prompt prefixes. Using the one-step identity
-$\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i)$, we define a smooth weighted
-total-variation objective that targets early draft-target disagreement. We then
-show that an unconditional projection guarantee is impossible via a prompt
-waywardness proposition, and prove that under a TV-Lipschitz assumption the
-projected discrete attack gap is bounded by the relaxed optimization error plus
-an explicit projection-distortion term. This yields a principled penalized
-objective that directly minimizes the continuous-to-discrete relaxation gap. In
-a local white-box setup with
+prompt prefixes. The implemented attack optimizes a straight-through relaxed
+prefix against a verifier-aligned objective that combines a first-token
+collapse term, total variation, reverse KL, entropy sharpening, and an
+explicit projection-distortion penalty. We show that an unconditional
+nearest-neighbor projection guarantee is impossible via a prompt-waywardness
+proposition, and prove that under a TV-Lipschitz assumption the projected
+discrete attack gap is bounded by the relaxed optimization error plus an
+explicit projection-distortion term. In a white-box setup with
 \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} drafting for
-\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, a benign GSM8K-style prompt has
-first-token acceptance $\alpha_1=1.0$, while the strongest adversarial seed we
-found so far drops to $\alpha_1=0.160$, causing an $84\%$ first-token rejection
-probability. On the saved 263-sample speculative GSM8K run, the ordinary
-aggregate drafted-token acceptance rate is $49.66\%$. We use these results to
-identify prompt-side acceptance collapse as a concrete systems vulnerability and
-to ground a mathematically justified attack objective for speculative decoding.
+\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, our Palmetto soft-prefix search
+consistently finds a five-token discrete attack that reduces exact first-token
+acceptance from $\alpha_1=0.1597$ for a manual seed to $\alpha_1=0.0288$ after
+projection. More importantly, on a matched 263-sample GSM8K boundary
+evaluation, the attacked prompt raises mean sample time from $23.10$s to
+$29.81$s, reduces aggregate drafted-token acceptance from $0.597$ to $0.509$,
+and lowers block efficiency from $5.832$ to $4.961$, while GSM8K accuracy
+remains statistically unchanged ($222/263$ benign versus $225/263$ attacked).
+These results establish prompt-side speculative-decoding slowdown as a concrete
+inference-cost attack: the model still solves the task, but the system loses a
+substantial fraction of its speculative speedup.
 \end{abstract}
 
 \input{Sections/Intro}
@@ -135,11 +138,14 @@ projection obstacle, proves that unconditional nearest-neighbor recovery is
 impossible, and shows that under TV-Lipschitz model behavior the projected
 discrete attack is controlled by relaxed optimization error and projection
 distortion. This directly justifies the manifold-attraction penalty in our
-optimization objective. The current experiments remain preliminary, but they
-already show that early-step acceptance collapse is substantial on a real
-draft-target pair. The most important next empirical step is to run the full
-relaxed search and track the theory-aligned diagnostics $C(U)$, $\rho(U)$, and
-the resulting discrete margin under token-wise and stronger verifiers.
+optimization objective. Empirically, the attack is not merely a first-token
+curiosity: the optimized prefix family degrades end-to-end token-wise
+speculative decoding on a matched 263-sample GSM8K evaluation, increasing wall
+time and decreasing aggregate acceptance and block efficiency without harming
+task accuracy. The main practical implication is clear. Lossless decoding does
+not imply cost robustness. A prompt can preserve answer quality while forcing
+the verifier to do substantially more work, turning speculative decoding into a
+prompt-controlled inference-cost surface.
 
 \input{Sections/Appendix}
 

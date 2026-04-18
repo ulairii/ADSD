@@ -1,4 +1,4 @@
-\section{Theoretical Framework: Continuous Relaxation and the Discrete Gap}
+\section{Theoretical Framework and Implemented Objective}
 
 To systematically find adversarial prefixes, we rely on gradient-based
 optimization over continuous token embeddings. However, optimizing a continuous
@@ -8,7 +8,7 @@ acknowledge the theoretical limits of unconditional projection, and establish
 the precise margin conditions under which our continuous-to-discrete pipeline is
 guaranteed to succeed.
 
-\subsection{Setup and the Smooth Overlap Surrogate}
+\subsection{Setup and the Continuous Attack Space}
 
 Let the attacker optimize a prefix of length $m$. A discrete prefix is a
 sequence $z = (z_1, \dots, z_m) \in \mathcal{V}^m$, where $\mathcal{V}$ is the
@@ -22,8 +22,8 @@ e_t(U) = E^\top u_t.
 
 Let $p_i^U$ and $q_i^U$ denote the target and draft next-token distributions at
 speculative step $i$ under the relaxed prefix $U$. Drawing from the one-step
-expected acceptance identity $\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i)$, we
-define our smooth attack objective to maximize early draft-target disagreement:
+expected acceptance identity $\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i)$, a
+natural theoretical objective is to maximize early draft-target disagreement:
 \[
 C(U) = \sum_{i=1}^{\gamma} w_i \tv(p_i^U, q_i^U),
 \]
@@ -162,8 +162,8 @@ attack:
 The theoretical bounds above directly dictate our optimization strategy. To
 maximize the discrete adversarial effect $C_d(\Pi(U))$, we cannot simply
 maximize $C(U)$. We must explicitly minimize the projection gap
-$L_C \rho(U)$. Consequently, our gradient-based search optimizes the following
-penalized objective:
+$L_C \rho(U)$. Consequently, any practical attack should optimize a penalized
+continuous objective of the form
 \[
 \max_U \; C(U) - \lambda \rho(U) - \tau \sum_{t=1}^{m} H(u_t),
 \]
@@ -172,8 +172,51 @@ bound the gap in Theorem~\ref{thm:relax-gap}, and the entropy regularization
 sharpens the simplex vectors so the optimizer explores regions near discrete
 token boundaries.
 
-In practice, we use this smooth TV objective as the primary search target and
-retain exact verifier scoring only for final discrete candidate selection. This
-division matches the theory: the continuous optimization is certified through
-$C(U)$ and $\rho(U)$, while deployment still occurs in the exact discrete
+\subsection{Implemented Soft-Prefix Attack}
+
+Our implementation uses the same relaxed search space, but instantiates the
+continuous objective for the \emph{first verifier step}, because early rejection
+creates the largest downstream slowdown in token-wise speculative decoding. Let
+$p^U$ and $q^U$ denote the target and draft next-token distributions after the
+relaxed prefix $U$. We define the implemented objective
+\begin{align*}
+J(U) ={}&
+\underbrace{\sum_{y} q^U(y)\,\mathrm{softplus}\!\left(\log q^U(y)-\log p^U(y)\right)}_{\text{soft collapse}} \\
+&+ \beta \,\tv(p^U, q^U)
++ \eta \,\mathrm{KL}(q^U \Vert p^U) \\
+&- \tau \,\frac{1}{m}\sum_{t=1}^{m} H(u_t)
+- \lambda \,\rho(U).
+\end{align*}
+The first term directly rewards the failure mode we seek: tokens on which the
+draft is confident while the verifier assigns much lower probability. The TV
+and reverse-KL terms enlarge the broader disagreement region around that token,
+and the entropy term sharpens the relaxed simplex vectors so that projection is
+stable. The projection penalty $\rho(U)$ is the theory-guided term from
+Theorem~\ref{thm:relax-gap}.
+
+We optimize $J(U)$ with Adam over per-position vocabulary logits. Each step
+uses a straight-through argmax estimator: the forward pass uses the projected
+hard token at each position, while the backward pass differentiates through the
+softmax relaxation. This is important operationally. The optimizer therefore
+sees the same discrete token manifold that deployment will use, instead of
+optimizing a purely continuous embedding string that may not survive
+projection.
+
+Model selection is also verifier-aligned. Although optimization uses the smooth
+objective $J(U)$, we keep the best candidate by its exact projected
+first-token acceptance
+\[
+\alpha_1 = \min\!\left(1, \frac{p(y_1)}{q(y_1)}\right),
+\]
+computed after hard projection. In other words, the smooth objective drives the
+search, but the retained attack is always evaluated in the exact discrete
 speculative-decoding pipeline.
+
+In the current experiments, the key hyperparameters are a five-token prefix,
+Adam learning rate $0.3$, temperature $1.0$, entropy weight $0.01$, TV weight
+$1.0$, reverse-KL weight $0.1$, and gradient clipping at $1.0$. The
+projection-distortion weight $\lambda$ is calibrated automatically from the
+initial ratio between the unpenalized objective and the initial projection
+distortion, then swept on Palmetto through a multiplicative factor. This
+calibration gives a stable way to compare attacks across different prefix
+lengths without hand-retuning the objective scale each time.
