@@ -1,35 +1,42 @@
-\section{Theoretical Framework and Implemented Objective}
+\section{Threat Model, Theory, and Attack Design}
 
-To systematically find adversarial prefixes, we rely on gradient-based
-optimization over continuous token embeddings. However, optimizing a continuous
-surrogate does not guarantee that its nearest discrete projection remains
-adversarial. In this section, we formalize the optimization objective,
-acknowledge the theoretical limits of unconditional projection, and establish
-the precise margin conditions under which our continuous-to-discrete pipeline is
-guaranteed to succeed.
+ADSD is a prompt-side, white-box attack on speculative decoding. The attacker
+knows the draft model, the target model, the tokenizer, and the deployed
+verification rule, but does not modify model weights, decoding code, hardware,
+or scheduler configuration at attack time. The attack surface is a short prefix
+inserted at the assistant boundary of the prompt. The attack goal is not to
+change the final answer; it is to reduce speculative efficiency by forcing the
+draft and target into early disagreement so that the verifier commits fewer
+drafted tokens per step.
 
-\subsection{Setup and the Continuous Attack Space}
+The section proceeds in the same order as the implementation. We first define
+the relaxed prompt space and the projection difficulty. We then derive the
+relaxation-gap guarantee that motivates the projection penalty. Finally, we
+describe the two attack pipelines implemented in the released codebase: a
+single-context soft-prefix attack and a calibration-batch universal-prefix
+extension.
+
+\subsection{Continuous Prompt Space}
 
 Let the attacker optimize a prefix of length $m$. A discrete prefix is a
 sequence $z = (z_1, \dots, z_m) \in \mathcal{V}^m$, where $\mathcal{V}$ is the
-vocabulary. Let $E \in \mathbb{R}^{|\mathcal{V}| \times d}$ denote the
-embedding matrix. We define a continuous relaxation
+tokenizer vocabulary. Let $E \in \mathbb{R}^{|\mathcal{V}| \times d}$ denote
+the embedding matrix. We define a continuous relaxation
 $U = (u_1, \dots, u_m)$, where each $u_t \in \Delta^{|\mathcal{V}|}$ is a
-probability simplex vector. The relaxed embedding at position $t$ is
+simplex vector over the vocabulary. The relaxed embedding at position $t$ is
 \[
 e_t(U) = E^\top u_t.
 \]
 
 Let $p_i^U$ and $q_i^U$ denote the target and draft next-token distributions at
 speculative step $i$ under the relaxed prefix $U$. Drawing from the one-step
-expected acceptance identity $\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i)$, a
-natural theoretical objective is to maximize early draft-target disagreement:
+acceptance identity $\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i)$, a natural
+theoretical objective is to maximize early draft-target disagreement:
 \[
 C(U) = \sum_{i=1}^{\gamma} w_i \tv(p_i^U, q_i^U),
 \]
-where $w_i = \gamma - i + 1$ linearly weights earlier tokens to maximize
-rejection pressure. The corresponding discrete objective is defined by
-restriction:
+where $w_i = \gamma - i + 1$ linearly emphasizes earlier speculative steps.
+The corresponding discrete objective is defined by restriction:
 \[
 C_d(z) := C(E(z)),
 \]
@@ -40,18 +47,15 @@ projection $\Pi(U) := (\Pi_1(U), \dots, \Pi_m(U))$, where
 \[
 \Pi_t(U) = \arg\min_{v \in \mathcal{V}} \|e_t(U) - E_v\|_2.
 \]
-We quantify the continuous-to-discrete shift via the projection distortion
-$\rho(U)$:
+We measure the continuous-to-discrete shift via the projection distortion
 \[
 \rho(U) := \sum_{t=1}^{m} \|e_t(U) - E_{\Pi_t(U)}\|_2.
 \]
 
-\subsection{The Obstruction of Prompt Waywardness}
+\subsection{Prompt Waywardness}
 
-A critical vulnerability in gradient-based text attacks is the assumption that
-continuous optimization smoothly maps back to discrete space. We first state a
-negative result demonstrating that without structural assumptions, projection is
-fundamentally unsafe.
+A central obstacle is that continuous optimization does not automatically
+translate into a strong discrete attack after projection.
 
 \begin{proposition}[Prompt Waywardness]
 \label{prop:waywardness}
@@ -62,14 +66,16 @@ $\delta$ of a discrete token cell, yet the nearest-neighbor projection
 $\Pi(U^*)$ is arbitrarily suboptimal among all discrete prefixes.
 \end{proposition}
 
-This proposition formalizes the empirical warning signs from prior literature:
-an unconditional projection guarantee is impossible. To bind the discrete gap,
-we must constrain the behavior of the specific model distributions.
+The proposition formalizes a simple but important fact: without further
+structure, proximity in embedding space does not guarantee attack quality after
+projection. Any practical prompt attack must therefore control not only the
+relaxed objective value, but also the distance from the relaxed solution to the
+token manifold.
 
 \subsection{Bounding the Projection Gap}
 
-To guarantee attack transferability from continuous to discrete space, we assume
-the generative distributions exhibit Lipschitz continuity with respect to the
+To connect relaxed optimization to discrete attack quality, we assume
+Lipschitz continuity of the target and draft distributions with respect to the
 input embeddings.
 
 \begin{assumption}[TV-Lipschitzness]
@@ -93,13 +99,11 @@ L_C := \sum_{i=1}^{\gamma} w_i (L_i^p + L_i^q)
 denote the aggregate Lipschitz constant of the weighted objective.
 \end{assumption}
 
-Under this assumption, we can strictly bound the quality degradation incurred
-during projection.
+This assumption yields a direct relaxation-gap guarantee.
 
 \begin{theorem}[Relaxation Gap for Early Acceptance Collapse]
 \label{thm:relax-gap}
-Let $U^*$ be an $\varepsilon$-optimal solution of the relaxed problem, such
-that
+Let $U^*$ be an $\varepsilon$-optimal solution of the relaxed problem such that
 \[
 C(U^*) \ge \sup_U C(U) - \varepsilon.
 \]
@@ -114,29 +118,24 @@ C_d(\Pi(U^*)) \ge C_d(z^*) - \varepsilon - L_C \rho(U^*).
 \end{theorem}
 
 \begin{proof}
-By Assumption~\ref{assump:tv-lipschitz} and the triangle inequality, $C$ is
-$L_C$-Lipschitz. Let
-$\hat{z} = \Pi(U^*)$. Because the continuous embeddings of $\hat{z}$ are within
-$\rho(U^*)$ of $U^*$, it follows that
+By Assumption~\ref{assump:tv-lipschitz}, the objective $C$ is $L_C$-Lipschitz
+under $\|\cdot\|_{2,1}$. Let $\hat{z} = \Pi(U^*)$. Since the continuous
+embeddings of $\hat{z}$ are within $\rho(U^*)$ of $U^*$, we have
 \[
 C_d(\hat{z}) = C(E(\hat{z})) \ge C(U^*) - L_C \rho(U^*).
 \]
-Since the optimal discrete prompt is a valid feasible solution in the relaxed
-space,
+Because the optimal discrete prefix is also feasible in the relaxed space,
 \[
 C(U^*) \ge C_d(z^*) - \varepsilon.
 \]
-Combining these inequalities yields the bound.
+Combining the two inequalities yields the claim.
 \end{proof}
 
-Theorem~\ref{thm:relax-gap} establishes that the discrete attack gap is
-controlled by only two
-actionable quantities: the optimization error of the relaxed solver
-($\varepsilon$) and the distance from the relaxed solution to the token
-manifold ($\rho(U^*)$).
+The theorem shows that the discrete attack gap is controlled by two actionable
+quantities: the optimization error of the relaxed solver and the projection
+distortion from the relaxed prefix back to the token manifold.
 
-We can further characterize when the continuous relaxation exactly recovers the
-globally optimal discrete attack. Let the discrete attack margin be defined as
+We can also characterize exact recovery. Define the discrete attack margin
 \[
 \Gamma := C_d(z^*) - \max_{z \neq z^*} C_d(z).
 \]
@@ -144,136 +143,122 @@ globally optimal discrete attack. Let the discrete attack margin be defined as
 \begin{corollary}[Exact Recovery under Discrete Margin]
 \label{cor:exact-recovery}
 Assume the optimal discrete adversarial prefix $z^*$ is unique
-($\Gamma > 0$). Under Theorem~\ref{thm:relax-gap}, if the combined optimization
-error and
-projection distortion is strictly less than the discrete margin,
+($\Gamma > 0$). Under Theorem~\ref{thm:relax-gap}, if
 \[
 \varepsilon + L_C \rho(U^*) < \Gamma,
 \]
-then the nearest-neighbor projection perfectly identifies the optimal discrete
+then the nearest-neighbor projection exactly recovers the optimal discrete
 attack:
 \[
 \Pi(U^*) = z^*.
 \]
 \end{corollary}
 
-\subsection{Algorithm Design Justification}
+\subsection{Design Implications}
 
-The theoretical bounds above directly dictate our optimization strategy. To
-maximize the discrete adversarial effect $C_d(\Pi(U))$, we cannot simply
-maximize $C(U)$. We must explicitly minimize the projection gap
-$L_C \rho(U)$. Consequently, any practical attack should optimize a penalized
-continuous objective of the form
+The previous results explain why maximizing the relaxed objective alone is not
+sufficient. To maximize the discrete attack effect $C_d(\Pi(U))$, the solver
+must also reduce the projection gap. This motivates a penalized objective of
+the form
 \[
 \max_U \; C(U) - \lambda \rho(U) - \tau \sum_{t=1}^{m} H(u_t),
 \]
-where $\lambda \rho(U)$ acts as a manifold-attraction penalty to explicitly
-bound the gap in Theorem~\ref{thm:relax-gap}, and the entropy regularization
-sharpens the simplex vectors so the optimizer explores regions near discrete
-token boundaries.
+where $\lambda \rho(U)$ acts as a manifold-attraction penalty and the entropy
+term sharpens the simplex vectors so the optimization remains close to
+projectable token configurations.
 
 \subsection{Implemented Soft-Prefix Attack}
 
-Our implementation uses the same relaxed search space, but instantiates the
-continuous objective for the \emph{first verifier step}, because early rejection
-creates the largest downstream slowdown in token-wise speculative decoding. Let
-$p^U$ and $q^U$ denote the target and draft next-token distributions after the
-relaxed prefix $U$. We define the implemented objective
+The first implemented attack pipeline instantiates this idea for the
+\emph{first verifier step}, since early rejection has the strongest effect on
+token-wise speculative efficiency. Let $p^U$ and $q^U$ denote the target and
+draft next-token distributions after the relaxed prefix $U$. The implemented
+objective is
 \begin{align*}
 J(U) ={}&
-\underbrace{\sum_{y} q^U(y)\,\mathrm{softplus}\!\left(\log q^U(y)-\log p^U(y)\right)}_{\text{soft collapse}} \\
-&+ \beta \,\tv(p^U, q^U)
+\underbrace{\sum_{y} q^U(y)\,\mathrm{softplus}\!\left(\log q^U(y)-\log p^U(y)\right)}_{\text{soft collapse}}
++ \beta \,\tv(p^U, q^U)
 + \eta \,\mathrm{KL}(q^U \Vert p^U) \\
 &- \tau \,\frac{1}{m}\sum_{t=1}^{m} H(u_t)
 - \lambda \,\rho(U).
 \end{align*}
-The first term directly rewards the failure mode we seek: tokens on which the
-draft is confident while the verifier assigns much lower probability. The TV
-and reverse-KL terms enlarge the broader disagreement region around that token,
-and the entropy term sharpens the relaxed simplex vectors so that projection is
-stable. The projection penalty $\rho(U)$ is the theory-guided term from
-Theorem~\ref{thm:relax-gap}.
 
-We optimize $J(U)$ with Adam over per-position vocabulary logits. Each step
-uses a straight-through argmax estimator: the forward pass uses the projected
-hard token at each position, while the backward pass differentiates through the
-softmax relaxation. This is important operationally. The optimizer therefore
-sees the same discrete token manifold that deployment will use, instead of
-optimizing a purely continuous embedding string that may not survive
-projection.
+The soft-collapse term rewards precisely the failure mode that harms
+speculative decoding: a token on which the draft is confident while the target
+assigns much lower probability. The TV and reverse-KL terms broaden the
+disagreement region around that failure point, the entropy term sharpens the
+relaxed simplex vectors, and the projection penalty $\rho(U)$ is the
+theory-guided term suggested by Theorem~\ref{thm:relax-gap}.
 
-While Theorem~\ref{thm:relax-gap} bounds the discrete gap using explicit
-$L_2$ nearest-neighbor projection in the embedding space, evaluating pairwise
-Euclidean distances across the full tokenizer vocabulary at every optimization
-step is computationally prohibitive. In the implementation, we therefore
-approximate the operational projection with a straight-through argmax estimator
-over the relaxed probability simplex. The theoretical connection is preserved
-by retaining the explicit $L_2$ projection-distortion penalty $\rho(U)$ in the
-continuous objective, which penalizes the distance between the relaxed
-soft-embeddings and the hard embeddings induced by the argmax-selected tokens.
+Operationally, the code parameterizes a matrix of per-position vocabulary
+logits, converts them to simplex vectors with softmax, and optimizes those
+logits with Adam. Each step uses a straight-through argmax estimator: the
+forward pass uses the hard projected token at each position, while the backward
+pass differentiates through the softmax relaxation. Although
+Theorem~\ref{thm:relax-gap} is phrased in terms of explicit nearest-neighbor
+projection, the implementation uses argmax projection for computational
+efficiency and retains the explicit $L_2$ projection-distortion penalty to keep
+the relaxed embeddings close to the hard-token manifold.
 
-Model selection is also verifier-aligned. Although optimization uses the smooth
-objective $J(U)$, we keep the best candidate by its exact projected
-first-token acceptance
+Model selection is verifier-aligned. The smooth objective drives optimization,
+but the retained candidate is chosen by its exact projected first-token
+acceptance
 \[
 \alpha_1 = \min\!\left(1, \frac{p(y_1)}{q(y_1)}\right),
 \]
-computed after hard projection. In other words, the smooth objective drives the
-search, but the retained attack is always evaluated in the exact discrete
+computed after hard projection. Thus, the optimizer searches in continuous
+space, but the final attack is always selected inside the exact discrete
 speculative-decoding pipeline.
 
-In the current experiments, the key hyperparameters are a five-token prefix,
-Adam learning rate $0.3$, temperature $1.0$, entropy weight $0.01$, TV weight
-$1.0$, reverse-KL weight $0.1$, and gradient clipping at $1.0$. The
-projection-distortion weight $\lambda$ is calibrated automatically from the
-initial ratio between the unpenalized objective and the initial projection
-distortion, then swept on Palmetto through a multiplicative factor. This
-calibration gives a stable way to compare attacks across different prefix
-lengths without hand-retuning the objective scale each time. Because the token
-embedding space is highly non-convex, initializing the relaxed prefix from a
-uniform distribution is unstable. We therefore warm-start the optimizer's
-initial logits from a manual adversarial seed and then search the full
-continuous vocabulary space around that initialization. In practice, the search
-often discovers subword fragments or visually unusual tokens that strictly
-outperform the original seed.
+In the experiments reported here, the core hyperparameters are a five-token
+prefix, Adam learning rate $0.3$, temperature $1.0$, entropy weight $0.01$, TV
+weight $1.0$, reverse-KL weight $0.1$, and gradient clipping at $1.0$. The
+projection penalty is calibrated automatically from the ratio between the
+unpenalized objective and the initial projection distortion, then swept on
+Palmetto through a multiplicative factor. Because the optimization landscape is
+highly non-convex, the implementation warm-starts the initial logits from a
+short manual adversarial seed and then searches the full vocabulary around that
+initialization.
 
-\subsection{Calibration-Batch Universal Prompting}
+\subsection{Calibration-Batch Universal Prefix Attack}
 
-To strengthen transfer beyond a single boundary context, we also optimize a
-shared universal adversarial prefix over a small calibration batch of GSM8K
-training prompts. For each calibration prompt $x^{(j)}$, we first roll out a
-target-only continuation $y^{*(j)}_{1:K}$ of length $K$. This produces a fixed
-target trajectory against which both the draft and the target can be evaluated
-in parallel at every timestamp. The resulting calibration objective is
+The second attack pipeline strengthens transfer beyond a single boundary
+context by optimizing a shared universal prefix over a calibration batch of
+GSM8K training prompts. For each calibration prompt $x^{(j)}$, the target
+model first produces a fixed continuation $y^{*(j)}_{1:K}$ of length $K$.
+These target-only rollouts define the temporal contexts on which the universal
+prefix is optimized. Both the draft and the target are then evaluated against
+the same fixed trajectory at every timestamp.
+
+The resulting objective is
 \begin{align*}
 J_{\mathrm{UAT}}(U) ={}&
 \frac{1}{N}\sum_{j=1}^{N}
 \Bigg[
 \lambda_c \sum_{i=1}^{s} \bar{w}_i\,
-\mathrm{SC}\!\left(q^{U,j}_i, p^{U,j}_i\right)
+\mathrm{SC}\!\left(q_i^{U,j}, p_i^{U,j}\right)
++ \beta \sum_{i=1}^{K} w_i\,\tv\!\left(q_i^{U,j}, p_i^{U,j}\right)
 \\
 &\qquad\qquad
-+ \beta \sum_{i=1}^{K} w_i\,\tv\!\left(q^{U,j}_i, p^{U,j}_i\right)
-+ \eta \sum_{i=1}^{K} w_i\,\mathrm{KL}\!\left(q^{U,j}_i \Vert p^{U,j}_i\right)
++ \eta \sum_{i=1}^{K} w_i\,\mathrm{KL}\!\left(q_i^{U,j} \Vert p_i^{U,j}\right)
 \Bigg]
-\\
-&- \tau \,\frac{1}{m}\sum_{t=1}^{m} H(u_t)
+- \tau \,\frac{1}{m}\sum_{t=1}^{m} H(u_t)
 - \lambda \,\rho(U),
 \end{align*}
 where $w_i \propto K-i+1$ linearly emphasizes earlier timestamps and
 $\bar{w}_i$ is the corresponding normalized restriction to the first $s$
-timestamps. The term $\mathrm{SC}$ denotes the same soft-collapse signal used
-in the one-step attack. This objective preserves the theoretical emphasis on
-early verifier failure while extending disagreement pressure across the full
-target trajectory.
+timestamps. The term $\mathrm{SC}$ is the same soft-collapse signal used in the
+single-context attack. The design intentionally preserves the theoretical
+emphasis on early verifier failure while extending disagreement pressure across
+the full target trajectory.
 
-The universal attack also benefits from a discrete initialization stage before
-continuous refinement. Starting from the warm-start seed, we compute
-gradient-guided token replacements at each prefix position, keep the top
-vocabulary candidates, and run a small beam search over the prefix. Candidate
-prefixes are ranked by exact projected first-token acceptance, with weighted
-trajectory TV used as the tie-breaker. The best discrete candidate then serves
-as the initialization point for the straight-through soft optimization above.
-Operationally, this seed-search stage is important: it places the continuous
-optimizer in a stronger basin and substantially improves the quality of the
-projected universal prefix recovered after refinement.
+The universal-prefix pipeline also uses a discrete initialization stage before
+continuous refinement. Starting from the warm-start seed, the implementation
+computes gradient-guided token replacements at each prefix position, retains
+the top vocabulary candidates, and runs a small beam search over the prefix.
+Candidate prefixes are ranked by exact projected first-token acceptance, with
+weighted trajectory TV used as the tie-breaker. The best discrete candidate
+then initializes the same straight-through optimization described above. In
+practice, this seed-search stage is crucial: it places the continuous optimizer
+in a stronger basin and substantially improves the quality of the projected
+universal prefix recovered after refinement.

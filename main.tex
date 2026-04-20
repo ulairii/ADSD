@@ -98,36 +98,31 @@
 
 
 \begin{abstract}
-Speculative decoding accelerates large language model inference only when a
-small draft model remains well aligned with the large target verifier. We study
-the opposite regime: prompt-side inputs that deliberately collapse speculative
-acceptance and erase the latency benefit of lossless decoding. We formalize
-this attack as a continuous-to-discrete optimization problem over adversarial
-prompt prefixes. The implemented attack optimizes a straight-through relaxed
-prefix against a verifier-aligned objective that combines a first-token
-collapse term, total variation, reverse KL, entropy sharpening, and an
-explicit projection-distortion penalty. We show that an unconditional
-nearest-neighbor projection guarantee is impossible via a prompt-waywardness
-proposition, and prove that under a TV-Lipschitz assumption the projected
-discrete attack gap is bounded by the relaxed optimization error plus an
-explicit projection-distortion term. In a white-box setup with
-\texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} drafting for
-\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, our Palmetto soft-prefix search
-consistently finds a five-token discrete attack that reduces exact first-token
-acceptance from $\alpha_1=0.1597$ for a manual seed to $\alpha_1=0.0288$ after
-projection. More importantly, on a matched 263-sample GSM8K boundary
-evaluation, the attacked prompt raises mean sample time from $23.10$s to
-$29.81$s, reduces aggregate drafted-token acceptance from $0.597$ to $0.509$,
-and lowers block efficiency from $5.832$ to $4.961$, while GSM8K accuracy
-remains statistically unchanged. We then extend the attack to a calibration-batch
-universal adversarial prefix optimized over multi-timestamp target rollouts.
-The strongest accuracy-preserving universal prefix raises mean sample time to
-$38.61$s ($+67.1\%$ over the benign token-wise baseline), lowers aggregate
-acceptance to $0.390$, and lowers block efficiency to $3.731$, while matching
-the benign GSM8K accuracy exactly at $222/263$. These results establish
-prompt-side speculative-decoding slowdown as a concrete inference-cost attack:
-the model still solves the task, but the system loses a substantial fraction of
-its speculative speedup.
+Speculative decoding improves LLM throughput only when a small draft model
+remains well aligned with the large target verifier. We study the opposite
+regime: prompt-side inputs that deliberately collapse verifier acceptance and
+thereby erase the latency benefit of lossless decoding. We formulate this as a
+continuous-to-discrete optimization problem over short adversarial prefixes.
+Theoretically, we show that unconditional projection guarantees are impossible
+via a prompt-waywardness proposition, and prove that under a TV-Lipschitz
+assumption the projected discrete attack gap is bounded by the relaxed
+optimization error and an explicit projection-distortion term. Algorithmically,
+we instantiate this analysis in a verifier-aligned straight-through optimizer
+with soft-collapse, total-variation, reverse-KL, entropy, and
+projection-distortion terms, and extend it to a calibration-batch universal
+prefix attack with multi-timestamp weighting and gradient-guided discrete seed
+search. In a white-box setup with \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8}
+drafting for \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, Palmetto search reduces
+exact projected first-token acceptance from $\alpha_1=0.1597$ for a manual seed
+to $\alpha_1=0.0288$ for the optimized boundary attack. On a matched
+263-sample token-wise GSM8K benchmark, the initial boundary attack raises mean
+sample time from $23.10$s to $29.81$s while reducing aggregate acceptance from
+$0.597$ to $0.509$. The stronger universal-prefix attack raises mean sample
+time to $38.61$s ($+67.1\%$ over the benign baseline), lowers aggregate
+acceptance to $0.390$, lowers block efficiency to $3.731$, and preserves the
+benign GSM8K accuracy exactly at $222/263$. These results establish a concrete
+inference-cost vulnerability in speculative decoding: a short prompt can leave
+task quality intact while forcing the verifier to do substantially more work.
 \end{abstract}
 
 \input{Sections/Intro}
