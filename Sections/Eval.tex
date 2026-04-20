@@ -3,69 +3,47 @@
 
 \subsection{Experimental Setup}
 
-We evaluate ADSD in the reproduced HSD workspace with:
-\begin{itemize}
-\item draft model: \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8},
-\item target model: \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8},
-\item verifier: token-wise speculative decoding,
-\item hardware: RTX 4090 or A100 class GPUs for the 14B target,
-\item benchmark: GSM8K prompting under the reproduced Qwen chat template.
-\end{itemize}
-
-The evaluation has two layers. First, we run the Palmetto soft-prefix search to
-measure exact projected first-token collapse on the optimized boundary context.
-Second, we inject either a matched boundary prefix or a calibration-batch
-universal prefix into the same token-wise 263-sample GSM8K evaluation. All
-end-to-end benchmark numbers in this section are therefore reported against the
-same matched benign token-wise baseline.
+We evaluate ADSD in the reproduced HSD workspace of
+\citet{zhou2026hsd} using \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} as the
+draft model and \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8} as the target model
+under token-wise speculative verification. The benchmark is GSM8K with the
+reproduced Qwen chat template, and the reported end-to-end runs use RTX 4090
+or A100-class GPUs for the 14B target. The evaluation has two layers. First,
+we run the Palmetto soft-prefix search to measure exact projected first-token
+collapse on the optimized boundary context. Second, we inject either a matched
+boundary prefix or a calibration-batch universal prefix into the same
+263-sample token-wise GSM8K evaluation. All end-to-end numbers in this section
+are therefore reported against the same matched benign token-wise baseline.
 
 Each benchmarked GSM8K run uses the same evaluator configuration: batch size
 one, stochastic decoding (\texttt{do\_sample=True}), a per-sample cap of
-\texttt{max\_new\_tokens=512}, and the same speculative verifier settings used
+\texttt{max\_new\_tokens=512}, and the same speculative verifier settings
 across all compared conditions. Per-sample wall-clock latency is recorded as
 the elapsed time around the actual speculative \texttt{generate(...)} call in
-the reproduced evaluator, while the counter-based metrics are computed from the
-saved speculative traces \texttt{draft\_eval}, \texttt{sample\_length}, and
-\texttt{total\_step}. This distinction matters: runtime is a real systems
-measurement, and aggregate acceptance and block efficiency are independent
-counter-based views of the same verifier behavior.
+the reproduced evaluator. Aggregate acceptance, block efficiency, and
+decoding-speed summaries follow the same counter-based bookkeeping exposed by
+the HSD evaluator and are computed from the saved speculative traces
+\texttt{draft\_eval}, \texttt{sample\_length}, and \texttt{total\_step}
+\citep{zhou2026hsd}. This distinction matters: runtime is a real systems
+measurement, while the counter-based metrics provide hardware-agnostic views of
+the underlying verifier behavior.
 
 \subsection{Metrics}
 
-We report five metrics that capture both attack strength and user-visible
-stealth:
-\begin{itemize}
-\item \textbf{First-token acceptance.}
-$\alpha_1 = \min(1, p(y_1)/q(y_1))$ for the first drafted token after the
-boundary prefix. This is the optimization target used to rank projected attack
-candidates.
-\item \textbf{Aggregate acceptance.}
-The fraction of drafted tokens that are accepted by the verifier over a full
-sample:
-\[
-\text{aggregate acceptance} =
-\frac{\text{accepted drafted tokens}}{\text{drafted tokens}}.
-\]
-\item \textbf{Block efficiency.}
-Accepted drafted tokens per verifier step:
-\[
-\text{block efficiency} =
-\frac{\text{accepted drafted tokens}}{\text{target steps}}.
-\]
-\item \textbf{Mean sample time.}
-Wall-clock generation time averaged over the 263 GSM8K prompts.
-\item \textbf{Decoding speed.}
-The HSD-style throughput statistic computed from the speculative counters in
-the reproduced workspace. This complements wall-clock time with a counter-based
-speed measure derived from accepted drafted tokens and elapsed decoding time.
-\item \textbf{Accuracy.}
-The standard GSM8K numeric-answer accuracy extracted from the evaluator output.
-\end{itemize}
-
-The key systems claim is not merely that $\alpha_1$ can be collapsed in
-isolation, but that the resulting discrete attack degrades aggregate
-acceptance, block efficiency, decoding speed, and runtime while leaving task
-accuracy essentially intact.
+We report six metrics that capture both systems degradation and user-visible
+stealth. First-token acceptance measures the collapse of the earliest verifier
+event and is the exact projected quantity used to rank retained attack
+candidates during search. Aggregate acceptance reports how much drafted work
+survives verification over a full sample. Block efficiency measures how many
+accepted drafted tokens are recovered per verifier step. Mean sample time is
+the wall-clock generation time averaged over the 263 GSM8K prompts. Decoding
+speed is the HSD-style throughput statistic computed from the speculative
+counters in the reproduced workspace \citep{zhou2026hsd}. Finally, accuracy is
+the standard GSM8K numeric-answer accuracy extracted from the evaluator
+output. The key systems claim is not merely that first-token acceptance can be
+collapsed in isolation, but that the resulting discrete attack degrades
+aggregate acceptance, block efficiency, decoding speed, and runtime while
+leaving task accuracy essentially intact.
 
 \subsection{Soft-Prefix Search Results}
 
@@ -182,6 +160,70 @@ degraded outputs, the slowdown could be dismissed as degenerate prompting. In
 contrast, the universal-prefix attack drives the verifier into a materially
 less efficient regime while preserving the user-visible task accuracy of the
 benign baseline.
+
+\subsection{Comparison Tables for Pending Experiments}
+
+For completeness, we also reserve the final table layouts for the remaining
+comparison and scaling experiments. Cells left blank correspond to runs that
+are planned but not yet populated in the current draft.
+
+\begin{table}[t]
+\centering
+\caption{Comparison with discrete search baselines on the token-wise GSM8K
+benchmark. Blank cells indicate pending experiments.}
+\label{tab:baseline-comparison}
+\footnotesize
+\begin{tabular}{lccccc}
+\toprule
+Method & Search cost & Time (s) & Agg. acc. & Block eff. & GSM8K acc. \\
+\midrule
+Benign baseline &  & $23.10$ & $0.597$ & $5.832$ & $222/263$ \\
+Random prefix &  &  &  &  &  \\
+GCG-adapted &  &  &  &  &  \\
+AutoDAN-adapted &  &  &  &  &  \\
+ADSD (boundary) &  & $29.81$ & $0.509$ & $4.961$ & $225/263$ \\
+ADSD (UAT, $N=4$) &  & $38.61$ & $0.390$ & $3.731$ & $222/263$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Cross-architecture scaling table. Blank cells indicate planned runs.}
+\label{tab:scaling-placeholder}
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+Target $\rightarrow$ Draft & Condition & Time (s) & Block eff. & Accuracy \\
+\midrule
+Qwen2.5 14B $\rightarrow$ 0.5B & Benign & $23.10$ & $5.832$ & $222/263$ \\
+Qwen2.5 14B $\rightarrow$ 0.5B & ADSD (UAT, $N=4$) & $38.61$ & $3.731$ & $222/263$ \\
+Qwen2.5 72B $\rightarrow$ 3B & Benign &  &  &  \\
+Qwen2.5 72B $\rightarrow$ 3B & ADSD &  &  &  \\
+LLaMA-3 8B $\rightarrow$ 1B & Benign &  &  &  \\
+LLaMA-3 8B $\rightarrow$ 1B & ADSD &  &  &  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Ablation layout for the ADSD objective. Blank cells indicate pending
+ablation runs.}
+\label{tab:ablation-placeholder}
+\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+Objective variant & Projected first token & Time (s) & Block eff. & Accuracy \\
+\midrule
+Full ADSD objective &  & $38.61$ & $3.731$ & $222/263$ \\
+w/o projection penalty $\rho$ &  &  &  &  \\
+w/o TV term &  &  &  &  \\
+w/o reverse KL &  &  &  &  \\
+w/o entropy term &  &  &  &  \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Interpretation}
 
