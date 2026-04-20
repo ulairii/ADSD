@@ -163,20 +163,19 @@ discrete token manifold. This is why ADSD uses an explicit
 projection-distortion penalty rather than treating projection as a
 post-processing step.
 
-\subsection{The ADSD Objective Formulation}
+\subsection{Base Objective Components}
 
-Motivated by Theorem~\ref{thm:relax-gap}, we construct a verifier-aligned
-objective that couples disagreement maximization with explicit control of the
-projection gap. Our initial single-prompt optimization targets the first
-verifier step, since early rejection is the most damaging to token-wise
-speculative throughput. While Theorem~\ref{thm:relax-gap} establishes the
-projection bound for the true disagreement objective $C(U)$, directly
-optimizing raw TV can yield weak or unstable gradients once the two
-distributions separate sharply. We therefore optimize a smooth surrogate
-$J(U)$ that preserves the same projection penalty while sharpening the search
-toward draft-overconfident regions that induce verifier collapse. Let $p^U$
-and $q^U$ denote the target and draft next-token distributions after the
-relaxed prefix $U$. ADSD optimizes
+Our ultimate deployment goal is a universal adversarial prefix that degrades
+verifier efficiency across arbitrary user prompts. To construct this, we first
+define the base optimization components for a single prompt, isolating the
+mechanics of early verifier collapse. While
+Theorem~\ref{thm:relax-gap} establishes the projection bound for the true
+disagreement objective $C(U)$, directly optimizing raw TV can yield weak or
+unstable gradients once the two distributions separate sharply. We therefore
+optimize a smooth surrogate that preserves the same projection penalty while
+sharpening the search toward draft-overconfident regions that induce verifier
+collapse. Let $p^U$ and $q^U$ denote the target and draft next-token
+distributions after the relaxed prefix $U$. The base surrogate objective is
 \begin{align*}
 J(U) ={}&
 \underbrace{\sum_{y} q^U(y)\,\mathrm{softplus}\!\left(\log q^U(y)-\log p^U(y)\right)}_{\text{soft collapse}}
@@ -225,11 +224,13 @@ initialization.
 
 \subsection{Calibration-Batch Universal Prefix}
 
-To move beyond a single prompt, ADSD also optimizes a shared
-universal prefix over a small calibration batch of GSM8K training prompts. For
-each calibration prompt $x^{(j)}$, the target model first produces a fixed
-continuation $y^{*(j)}_{1:K}$ of length $K$. These target-only rollouts define
-the temporal contexts on which the universal prefix is optimized.
+While the base objective isolates verifier disagreement, an
+instance-specific prefix is impractical for deployment. Therefore, our
+complete ADSD framework extends these base components into a shared universal
+prefix optimized over a calibration batch of prompts. For each calibration
+prompt $x^{(j)}$, the target model first produces a fixed continuation
+$y^{*(j)}_{1:K}$ of length $K$. These target-only rollouts define the temporal
+contexts on which the universal prefix is optimized.
 
 Let $p_i^{U,j}$ and $q_i^{U,j}$ denote the target and draft next-token
 distributions at timestamp $i$ on calibration prompt $j$. The universal-prefix
