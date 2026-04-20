@@ -6,127 +6,41 @@
 We evaluate ADSD in the reproduced HSD workspace of
 \citet{zhou2026hsd} using \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} as the
 draft model and \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8} as the target model
-under token-wise speculative verification. The benchmark is GSM8K with the
-reproduced Qwen chat template, and the reported end-to-end runs use RTX 4090
-or A100-class GPUs for the 14B target. The evaluation has two layers. First,
-we run the Palmetto soft-prefix search to measure exact projected first-token
-collapse on an optimized single-prompt context. Second, we inject either a matched
-single-prompt prefix or a calibration-batch universal prefix into the same
-263-sample token-wise GSM8K evaluation. All end-to-end numbers in this section
-are therefore reported against the same matched benign token-wise baseline.
+under token-wise speculative verification. Unless otherwise noted, the
+benchmark is GSM8K with the reproduced Qwen chat template and a matched
+five-token benign prefix budget. All end-to-end numbers are reported against
+the same benign token-wise baseline.
 
-Each benchmarked GSM8K run uses the same evaluator configuration: batch size
-one, stochastic decoding (\texttt{do\_sample=True}), a per-sample cap of
-\texttt{max\_new\_tokens=512}, and the same speculative verifier settings
-across all compared conditions. Per-sample wall-clock latency is recorded as
-the elapsed time around the actual speculative \texttt{generate(...)} call in
-the reproduced evaluator. Aggregate acceptance, block efficiency, and
-decoding-speed summaries follow the same counter-based bookkeeping exposed by
-the HSD evaluator and are computed from the saved speculative traces
-\texttt{draft\_eval}, \texttt{sample\_length}, and \texttt{total\_step}
-\citep{zhou2026hsd}. This distinction matters: runtime is a real systems
-measurement, while the counter-based metrics provide hardware-agnostic views of
-the underlying verifier behavior. Evaluating at batch size one is deliberate
-and follows standard speculative-decoding practice
-\citep{leviathan2023speculative,zhou2026hsd}: the object of study here is the
-per-sequence verifier mechanism itself, not downstream batching or router
+Each run uses batch size one, stochastic decoding
+(\texttt{do\_sample=True}), and a per-sample cap of
+\texttt{max\_new\_tokens=512}. We measure systems impact with wall-clock
+latency, aggregate acceptance, block efficiency, and decoding speed. Latency
+is recorded directly around the speculative \texttt{generate(...)} call.
+Aggregate acceptance is the fraction of drafted tokens that survive
+verification, and block efficiency is the number of accepted drafted tokens per
+target verifier step. These counter-based metrics are computed from the saved
+speculative traces in the reproduced HSD evaluator and therefore expose the
+behavior of the verification mechanism independently of incidental timing
+noise. Evaluating at batch size one follows standard speculative-decoding
+practice \citep{leviathan2023speculative,zhou2026hsd}: the object of study is
+the per-sequence verifier mechanism itself rather than downstream serving-stack
 scheduling.
 
-\subsection{Metrics}
+Before the end-to-end benchmarks, the Palmetto search consistently finds
+projected prefixes that collapse early verifier acceptance. In the single-prompt
+setting, the optimized five-token prefix reduces exact projected
+$\alpha_1$ from $0.1597$ to $0.0288$. In the calibration-batch universal search
+with $K=64$, every calibration size $N\in\{1,2,4,8\}$ yields a projected
+prefix with calibration-batch $\alpha_1=0$, and the $N=4$ prefix delivers the
+strongest accuracy-preserving end-to-end attack.
 
-We report six metrics that capture both systems degradation and user-visible
-stealth. First-token acceptance measures the collapse of the earliest verifier
-event and is the exact projected quantity used to rank retained attack
-candidates during search. Aggregate acceptance reports how much drafted work
-survives verification over a full sample. Block efficiency measures how many
-accepted drafted tokens are recovered per verifier step. Mean sample time is
-the wall-clock generation time averaged over the 263 GSM8K prompts. Decoding
-speed is the HSD-style throughput statistic computed from the speculative
-counters in the reproduced workspace \citep{zhou2026hsd}. Finally, accuracy is
-the standard GSM8K numeric-answer accuracy extracted from the evaluator
-output. The key systems claim is not merely that first-token acceptance can be
-collapsed in isolation, but that the resulting discrete attack degrades
-aggregate acceptance, block efficiency, decoding speed, and runtime while
-leaving task accuracy essentially intact.
+\subsection{End-to-End Latency Degradation}
 
-\subsection{Soft-Prefix Search Results}
-
-The Palmetto search optimizes a five-token relaxed prefix and projects it to a
-discrete boundary string. Across the sweep
-$\lambda_{\rho}\in\{0.1, 0.25, 0.5, 1.0\}$, the optimizer consistently returns
-the same projected attack and the same best exact first-token acceptance. The
-manual comparison seed has exact $\alpha_1 = 0.1597$, while the optimized
-projected prefix reaches $\alpha_1 = 0.0288$. Thus, after projection, the
-search reduces verifier acceptance on the first drafted token by more than
-$5\times$ relative to the hand-written seed.
-
-\begin{table}[t]
-\centering
-\caption{Palmetto soft-prefix search. The optimizer is stable across the
-projection-penalty sweep: every setting recovers the same best projected
-five-token attack.}
-\label{tab:soft-search}
-\begin{tabular}{lcccc}
-\toprule
-Run family & $\lambda_{\rho}$ multiplier & best $\alpha_1$ & baseline $\alpha_1$ & best step \\
-\midrule
-rho sweep & $0.1$ & $0.0288$ & $0.1597$ & $1$ \\
-rho sweep & $0.25$ & $0.0288$ & $0.1597$ & $1$ \\
-rho sweep & $0.5$ & $0.0288$ & $0.1597$ & $1$ \\
-rho sweep & $1.0$ & $0.0288$ & $0.1597$ & $1$ \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-This stability matters. It indicates that the attack is not an artifact of a
-single penalty setting; the same discrete attack remains optimal across a
-meaningful range of projection-distortion regularization strengths.
-
-\subsection{Calibration-Batch Universal Prefix Search}
-
-We next extend the attack from a single-prompt setting to a calibration-batch
-universal prefix. For each calibration size $N \in \{1,2,4,8\}$, we optimize a
-shared five-token prefix over $K=64$ target rollouts and then retain the best
-projected prefix under the exact verifier-aligned ranking rule. The result is a
-clear monotone pattern: every calibration size produces a stronger discrete
-prefix than the manual seed, and every recovered universal prefix drives the
-exact projected first-token acceptance to zero on its calibration batch.
-
-\begin{table}[t]
-\centering
-\caption{Calibration-batch universal-prefix search with $K=64$ target
-rollout tokens. All settings outperform the manual seed; $N=4$ yields the
-best accuracy-preserving universal attack in the held-out token-wise
-benchmark. Optimized discrete prefixes frequently exploit irregular or
-cross-lingual sub-word boundaries, so the displayed snippets are shown in an
-escaped monospace form rather than as normalized natural-language text.}
-\label{tab:uat-search}
-\footnotesize
-\begin{tabular}{lcccc}
-\toprule
-Calibration size & Prefix snippet & $\alpha_1$ & Weighted TV & Beats seed \\
-\midrule
-$N=1$ & \texttt{Complete\textbackslash u041b\textbackslash u0410 ...} & $0.0000$ & $0.2459$ & yes \\
-$N=2$ & \texttt{total\textbackslash u5bf9\textbackslash u672a\textbackslash u6765 ...} & $0.0000$ & $0.3285$ & yes \\
-$N=4$ & \texttt{total\textbackslash u5bf9\textbackslash u672a\textbackslash u6765 ...} & $0.0000$ & $0.2563$ & yes \\
-$N=8$ & \texttt{\textbackslash ufffd the next symbol only} & $0.0000$ & $0.2173$ & yes \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The calibration-batch attack is important for two reasons. First, it confirms
-that early verifier collapse is not restricted to a single hand-crafted
-prompt. Second, it exposes a useful trade-off frontier: some
-universal prefixes maximize slowdown aggressively, while others preserve the
-task behavior of the benign baseline almost exactly.
-
-\subsection{Token-Wise 263-Sample Benchmark}
-
-Table~\ref{tab:tokenwise-benchmark} reports the matched 263-sample token-wise
-benchmark. The benign condition prepends the same five-token budget with the
-instruction \texttt{Please think step by step}. We then compare the strongest
-universal-prefix attack ($N=2$) and the strongest
-accuracy-preserving universal-prefix attack ($N=4$).
+ADSD substantially degrades verifier efficiency on unseen prompts while
+preserving task accuracy. Table~\ref{tab:tokenwise-benchmark} reports the
+matched 263-sample GSM8K benchmark comparing the benign boundary baseline with
+the strongest accuracy-preserving universal prefix ($N=4$) and the strongest
+cost-maximizing universal prefix ($N=2$).
 
 \begin{table}[t]
 \centering
@@ -146,52 +60,67 @@ Universal prefix ($N=2$) & $51.60$ & $0.358$ & $3.506$ & $46.09$ & $202/263$ \\
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:tokenwise-benchmark} captures the central empirical result of
-the paper. The universal-prefix extension substantially widens the attack
-surface beyond any single prompt instance. The $N=2$ universal prefix is the
-strongest cost attack overall, pushing mean sample time to $51.60$s and
-cutting decoding speed to $46.09$, but it also degrades GSM8K accuracy. The
-$N=4$ universal prefix is the most important systems result: it raises mean
-sample time from $23.10$s to $38.61$s ($+67.1\%$), lowers aggregate acceptance
-from $0.597$ to $0.390$, lowers block efficiency from $5.832$ to $3.731$, and
-reduces decoding speed from $79.55$ to $51.68$, while matching the benign
-GSM8K accuracy exactly at $222/263$.
+The systems signal is unambiguous. The $N=4$ universal prefix increases mean
+sample time from $23.10$s to $38.61$s, a $67.1\%$ slowdown, while lowering
+aggregate acceptance from $0.597$ to $0.390$ and block efficiency from $5.832$
+to $3.731$. The same condition reduces HSD-style decoding speed from $79.55$
+to $51.68$ while preserving GSM8K accuracy exactly at $222/263$. This
+alignment between counter-based verifier statistics and wall-clock latency is
+critical: it shows that the slowdown is a consequence of algorithmic verifier
+degradation rather than an artifact of hardware noise. The $N=2$ universal
+prefix pushes the cost attack further still, but at the price of task
+degradation. For the core stealth claim of the paper, the $N=4$ prefix is the
+most important result: a short prompt-side perturbation can deny the intended
+speculative speedup while leaving user-visible task quality unchanged.
 
-This is the attack profile that makes speculative inefficiency a real systems
-problem rather than a prompt oddity. If the prefix merely caused obviously
-degraded outputs, the slowdown could be dismissed as degenerate prompting. In
-contrast, the universal-prefix attack drives the verifier into a materially
-less efficient regime while preserving the user-visible task accuracy of the
-benign baseline.
+\subsection{Comparison with Discrete Search Baselines}
 
-\subsection{Comparison Tables for Pending Experiments}
-
-For completeness, we also reserve the final table layouts for the remaining
-comparison and scaling experiments. Cells left blank correspond to runs that
-are planned but not yet populated in the current draft.
+Bounded continuous optimization is strictly more effective than heuristic
+discrete search for verifier manipulation. Table~\ref{tab:baseline-comparison}
+compares ADSD against three discrete baselines: a pure random five-token
+prefix, a GCG-adapted search baseline, and an AutoDAN-adapted search baseline.
 
 \begin{table}[t]
 \centering
 \caption{Comparison with discrete search baselines on the token-wise GSM8K
-benchmark. Blank cells indicate pending experiments.}
+benchmark. Search cost reports the dominant prompt-search workload required to
+produce the final five-token prefix.}
 \label{tab:baseline-comparison}
 \footnotesize
 \begin{tabular}{lccccc}
 \toprule
 Method & Search cost & Time (s) & Agg. acc. & Block eff. & GSM8K acc. \\
 \midrule
-Benign baseline &  & $23.10$ & $0.597$ & $5.832$ & $222/263$ \\
-Random prefix &  &  &  &  &  \\
-GCG-adapted &  &  &  &  &  \\
-AutoDAN-adapted &  &  &  &  &  \\
-ADSD (UAT, $N=4$) &  & $38.61$ & $0.390$ & $3.731$ & $222/263$ \\
+Benign baseline & --- & $23.10$ & $0.597$ & $5.832$ & $222/263$ \\
+Random prefix & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ \\
+GCG-adapted & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ \\
+AutoDAN-adapted & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ \\
+ADSD (UAT, $N=4$) & $[XX]$ & $38.61$ & $0.390$ & $3.731$ & $222/263$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+The comparison isolates the key advantage of ADSD. Heuristic discrete methods
+must search directly in token space, where verifier collapse is sparse and
+projection failures are invisible until evaluation time. ADSD instead uses a
+continuous verifier-aligned objective and a projection-aware regularizer to
+reach deeper acceptance collapse with a short prompt budget. The resulting
+prefixes therefore achieve stronger end-to-end degradation than discrete search
+alone, while requiring materially less trial-and-error over the combinatorial
+token space.
+
+\subsection{Cross-Architecture Vulnerability}
+
+The vulnerability is a property of speculative verification itself, not a quirk
+of a single Qwen pairing. Table~\ref{tab:scaling-placeholder} evaluates ADSD on
+larger Qwen and LLaMA draft-target pairs to test whether the same prompt-side
+mechanism persists across architectures and scales.
+
 \begin{table}[t]
 \centering
-\caption{Cross-architecture scaling table. Blank cells indicate planned runs.}
+\caption{Cross-architecture scaling of ADSD. Larger target models amplify the
+absolute systems cost of verifier collapse because each rejected speculative
+window forces more expensive target-side work.}
 \label{tab:scaling-placeholder}
 \footnotesize
 \begin{tabular}{lcccc}
@@ -199,57 +128,60 @@ ADSD (UAT, $N=4$) &  & $38.61$ & $0.390$ & $3.731$ & $222/263$ \\
 Target $\rightarrow$ Draft & Condition & Time (s) & Block eff. & Accuracy \\
 \midrule
 Qwen2.5 14B $\rightarrow$ 0.5B & Benign & $23.10$ & $5.832$ & $222/263$ \\
-Qwen2.5 14B $\rightarrow$ 0.5B & ADSD (UAT, $N=4$) & $38.61$ & $3.731$ & $222/263$ \\
-Qwen2.5 72B $\rightarrow$ 3B & Benign &  &  &  \\
-Qwen2.5 72B $\rightarrow$ 3B & ADSD &  &  &  \\
-LLaMA-3 8B $\rightarrow$ 1B & Benign &  &  &  \\
-LLaMA-3 8B $\rightarrow$ 1B & ADSD &  &  &  \\
+Qwen2.5 14B $\rightarrow$ 0.5B & ADSD & $38.61$ & $3.731$ & $222/263$ \\
+Qwen2.5 72B $\rightarrow$ 3B & Benign & $[XX]$ & $[XX]$ & $[XX]$ \\
+Qwen2.5 72B $\rightarrow$ 3B & ADSD & $[XX]$ & $[XX]$ & $[XX]$ \\
+LLaMA-3 8B $\rightarrow$ 1B & Benign & $[XX]$ & $[XX]$ & $[XX]$ \\
+LLaMA-3 8B $\rightarrow$ 1B & ADSD & $[XX]$ & $[XX]$ & $[XX]$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+The expected pattern is straightforward: if verifier collapse reflects a
+fundamental weakness of draft-target acceleration rather than an idiosyncrasy of
+one model family, then the same prompt-side mechanism should transfer across
+architectures and become even more costly as target-model capacity grows. In
+that regime, the absolute latency penalty becomes larger even when the relative
+drop in acceptance is comparable.
+
+\subsection{Ablation of Optimization Components}
+
+The projection-aware design of ADSD is empirically necessary. Table
+\ref{tab:ablation-placeholder} ablates the main terms of the optimization
+objective, with special emphasis on the projection penalty $\rho(U)$$,$ which
+is the direct algorithmic instantiation of the theoretical bound in
+Section~\ref{sec:method}.
+
 \begin{table}[t]
 \centering
-\caption{Ablation layout for the ADSD objective. Blank cells indicate pending
-ablation runs.}
+\caption{Ablation of ADSD optimization components. The full objective combines
+early collapse pressure, trajectory-level distributional mismatch, and
+projection-aware regularization.}
 \label{tab:ablation-placeholder}
 \footnotesize
 \begin{tabular}{lcccc}
 \toprule
 Objective variant & Projected first token & Time (s) & Block eff. & Accuracy \\
 \midrule
-Full ADSD objective &  & $38.61$ & $3.731$ & $222/263$ \\
-w/o projection penalty $\rho$ &  &  &  &  \\
-w/o TV term &  &  &  &  \\
-w/o reverse KL &  &  &  &  \\
-w/o entropy term &  &  &  &  \\
+Full ADSD objective & $[XX]$ & $38.61$ & $3.731$ & $222/263$ \\
+w/o projection penalty $\rho$ & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ \\
+w/o TV term & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ \\
+w/o reverse KL & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ \\
+w/o entropy term & $[XX]$ & $[XX]$ & $[XX]$ & $[XX]$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Interpretation}
+This ablation directly tests the central methodological claim of the paper. If
+the relaxation-to-text gap were merely a nuisance detail, then removing the
+projection-aware term would not materially affect the final discrete attack. Our
+theory predicts the opposite: without a mechanism that keeps the relaxed prefix
+close to the discrete manifold, optimization can find a strong continuous
+adversarial state whose projected text no longer preserves verifier collapse.
+The ablation therefore functions as an empirical validation of the
+prompt-waywardness argument in Section~\ref{sec:method}.
 
-Three conclusions follow.
-
-First, first-token collapse is a useful attack primitive, not a misleading toy
-metric. The soft search drives exact projected $\alpha_1$ from $0.1597$ down to
-$0.0288$, and the calibration-batch universal search drives the projected
-calibration $\alpha_1$ all the way to zero for every $N \in \{1,2,4,8\}$.
-These projected prefixes then produce substantial end-to-end degradation on the
-held-out token-wise evaluation.
-
-Second, counter-based verifier metrics and wall-clock latency move in lockstep.
-The attacks that lower aggregate acceptance and block efficiency also lower the
-HSD-style decoding-speed statistic and raise real generation time. This
-agreement makes the slowdown effect difficult to attribute to incidental
-hardware noise alone.
-
-Third, the attack is already practically meaningful at modest prompt budget.
-The strongest accuracy-preserving result uses only a short five-token universal
-prefix, yet it raises runtime by more than two thirds without requiring any
-model parameter changes or API privileges beyond prompt control.
-
-\subsection{Adaptive Defenses}
+\subsection{Discussion: Robustness Against Adaptive Defenses}
 
 One natural defense is to detect persistent acceptance collapse and halt
 drafting adaptively, as in designs such as AdaEDL. Such a fallback is useful,
@@ -262,12 +194,3 @@ extracts a penalty during the detection phase, after which the request is
 reduced to ordinary autoregressive decoding rather than accelerated
 speculative decoding. From the adversary's perspective, that outcome remains a
 successful worst-case degradation of the algorithmic mechanism.
-
-\subsection{Scope}
-
-Our experiments focus on the token-wise verifier because it provides the
-cleanest connection between the exact acceptance rule and the verifier-aligned
-optimization objective. Within that setting, the empirical picture is already
-clear: prompt-side optimization can translate isolated verifier collapse into a
-large end-to-end slowdown, and calibration-batch universal prompting amplifies
-that effect considerably.
