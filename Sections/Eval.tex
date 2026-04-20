@@ -97,7 +97,9 @@ exact projected first-token acceptance to zero on its calibration batch.
 \caption{Calibration-batch universal-prefix search with $K=64$ target
 rollout tokens. All settings outperform the manual seed; $N=4$ yields the
 best accuracy-preserving universal attack in the held-out token-wise
-benchmark.}
+benchmark. Optimized discrete prefixes frequently exploit irregular or
+cross-lingual sub-word boundaries, so the displayed snippets are shown in an
+escaped monospace form rather than as normalized natural-language text.}
 \label{tab:uat-search}
 \footnotesize
 \begin{tabular}{lcccc}
@@ -250,6 +252,20 @@ Third, the attack is already practically meaningful at modest prompt budget.
 The strongest accuracy-preserving result uses only a short five-token universal
 prefix, yet it raises runtime by more than two thirds without requiring any
 model parameter changes or API privileges beyond prompt control.
+
+\subsection{Adaptive Defenses}
+
+One natural defense is to detect persistent acceptance collapse and halt
+drafting adaptively, as in designs such as AdaEDL. Such a fallback is useful,
+but it does not eliminate the vulnerability studied here. The attacker does
+not need to force the system into a permanently degraded regime to succeed; it
+is already sufficient to deny the request the intended speculative speedup.
+Moreover, adaptive fallbacks require an observation window before the system
+can decide that drafting is no longer beneficial. The attack therefore still
+extracts a penalty during the detection phase, after which the request is
+reduced to ordinary autoregressive decoding rather than accelerated
+speculative decoding. From the adversary's perspective, that outcome remains a
+successful worst-case degradation of the algorithmic mechanism.
 
 \subsection{Scope}
 

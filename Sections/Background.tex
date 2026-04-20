@@ -5,11 +5,7 @@ Speculative decoding accelerates autoregressive generation by pairing a small
 draft model with a large target verifier \citep{leviathan2023speculative}. Let
 $q_i(\cdot \mid h_i)$ denote the draft distribution at speculative step $i$
 given history $h_i$, and let $p_i(\cdot \mid h_i)$ denote the corresponding
-target distribution. The draft proposes a token $y_i \sim q_i$, and the target
-accepts it with probability
-\[
-\alpha_i = \min\!\left(1, \frac{p_i(y_i)}{q_i(y_i)}\right).
-\]
+target distribution.
 
 The verifier either commits the drafted token or replaces it with a
 target-sampled correction. Consequently, speculative efficiency depends
@@ -17,39 +13,24 @@ directly on the overlap between $p_i$ and $q_i$: high agreement yields long
 accepted draft blocks, whereas low agreement forces frequent verifier
 intervention.
 
-This dependence can be written in a particularly convenient form. Under draft
-sampling, the one-step expected acceptance satisfies
-\[
-\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i),
-\]
-where $\tv$ is total variation distance. This identity makes the attack surface
-explicit. Any prompt that increases early draft-target disagreement will, in
-expectation, reduce verifier acceptance and therefore diminish speculative
-speedup. At the same time, it also reveals the methodological obstacle that
+This dependence has an especially important consequence for our setting:
+one-step verifier acceptance decreases as the draft and target distributions
+diverge. That link makes the attack surface explicit. Any prompt that
+increases early draft-target disagreement will, in expectation, reduce
+verifier acceptance and therefore diminish speculative speedup. At the same
+time, it also reveals the methodological obstacle that
 drives the rest of the paper: maximizing verifier disagreement over a deployed
 prompt requires optimization over discrete tokens, whereas the most informative
 search signals live in a continuous relaxation. The attack problem is
 therefore not just to increase TV, but to do so in a way that survives
 projection back to text.
 
-The systems metrics used throughout the paper are derived from the same
-acceptance process. Let accepted drafted tokens denote the number of draft
-tokens that survive verification, drafted tokens denote the total number of
-tokens proposed by the draft, and target steps denote the number of verifier
-steps taken by the target. Then
-\[
-\text{aggregate acceptance}
-= \frac{\text{accepted drafted tokens}}{\text{drafted tokens}},
-\]
-\[
-\text{block efficiency}
-= \frac{\text{accepted drafted tokens}}{\text{target steps}}.
-\]
-Aggregate acceptance captures how much of the draft computation survives, while
-block efficiency measures how much useful drafted work is recovered per
-verifier step. These counter-based metrics complement wall-clock latency in the
-experiments and are less sensitive to incidental runtime noise than raw timing
-alone.
+The systems metrics used in the evaluation section arise from this same
+acceptance process. Aggregate acceptance captures how much draft computation
+survives verification, while block efficiency measures how much useful drafted
+work is recovered per verifier step. We defer the formal metric definitions to
+Section~\ref{sec:eval}, where they are introduced alongside the experimental
+protocol.
 
 \subsection{Related Work}
 

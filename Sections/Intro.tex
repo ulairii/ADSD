@@ -81,18 +81,18 @@ accuracy exactly at $222/263$.
 
 Our contributions are:
 \begin{itemize}
-\item \textbf{Theory.} We formulate prompt-side speculative slowdown as a
+\item We formulate prompt-side speculative slowdown as a
 continuous-to-discrete optimization problem, prove a prompt-waywardness
 impossibility result, and derive a relaxation-gap bound that justifies
 explicit projection-distortion control.
-\item \textbf{Algorithm.} We introduce ADSD, a verifier-aligned attack that
-combines bounded continuous optimization with discrete projection-aware model
-selection, and extend it to a calibration-batch universal-prefix pipeline with
+\item We introduce ADSD, a verifier-aligned attack that combines bounded
+continuous optimization with discrete projection-aware model selection, and we
+extend it to a calibration-batch universal-prefix pipeline with
 gradient-guided seed search.
-\item \textbf{Empirical results.} On a reproduced HSD/Qwen stack, we show that
-prompt-only attacks can materially degrade speculative efficiency, and that the
-strongest accuracy-preserving universal prefix raises end-to-end runtime by
-$67.1\%$ on a matched token-wise benchmark.
+\item On a reproduced HSD/Qwen stack, we show that prompt-only attacks can
+materially degrade speculative efficiency, and that the strongest
+accuracy-preserving universal prefix raises end-to-end runtime by $67.1\%$ on
+a matched token-wise benchmark.
 \end{itemize}
 
 The broader message is simple. Lossless output semantics do not imply cost
