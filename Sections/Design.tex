@@ -236,3 +236,44 @@ initial logits from a manual adversarial seed and then search the full
 continuous vocabulary space around that initialization. In practice, the search
 often discovers subword fragments or visually unusual tokens that strictly
 outperform the original seed.
+
+\subsection{Calibration-Batch Universal Prompting}
+
+To strengthen transfer beyond a single boundary context, we also optimize a
+shared universal adversarial prefix over a small calibration batch of GSM8K
+training prompts. For each calibration prompt $x^{(j)}$, we first roll out a
+target-only continuation $y^{*(j)}_{1:K}$ of length $K$. This produces a fixed
+target trajectory against which both the draft and the target can be evaluated
+in parallel at every timestamp. The resulting calibration objective is
+\begin{align*}
+J_{\mathrm{UAT}}(U) ={}&
+\frac{1}{N}\sum_{j=1}^{N}
+\Bigg[
+\lambda_c \sum_{i=1}^{s} \bar{w}_i\,
+\mathrm{SC}\!\left(q^{U,j}_i, p^{U,j}_i\right)
+\\
+&\qquad\qquad
++ \beta \sum_{i=1}^{K} w_i\,\tv\!\left(q^{U,j}_i, p^{U,j}_i\right)
++ \eta \sum_{i=1}^{K} w_i\,\mathrm{KL}\!\left(q^{U,j}_i \Vert p^{U,j}_i\right)
+\Bigg]
+\\
+&- \tau \,\frac{1}{m}\sum_{t=1}^{m} H(u_t)
+- \lambda \,\rho(U),
+\end{align*}
+where $w_i \propto K-i+1$ linearly emphasizes earlier timestamps and
+$\bar{w}_i$ is the corresponding normalized restriction to the first $s$
+timestamps. The term $\mathrm{SC}$ denotes the same soft-collapse signal used
+in the one-step attack. This objective preserves the theoretical emphasis on
+early verifier failure while extending disagreement pressure across the full
+target trajectory.
+
+The universal attack also benefits from a discrete initialization stage before
+continuous refinement. Starting from the warm-start seed, we compute
+gradient-guided token replacements at each prefix position, keep the top
+vocabulary candidates, and run a small beam search over the prefix. Candidate
+prefixes are ranked by exact projected first-token acceptance, with weighted
+trajectory TV used as the tie-breaker. The best discrete candidate then serves
+as the initialization point for the straight-through soft optimization above.
+Operationally, this seed-search stage is important: it places the continuous
+optimizer in a stronger basin and substantially improves the quality of the
+projected universal prefix recovered after refinement.

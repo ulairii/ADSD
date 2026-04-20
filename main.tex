@@ -119,10 +119,15 @@ projection. More importantly, on a matched 263-sample GSM8K boundary
 evaluation, the attacked prompt raises mean sample time from $23.10$s to
 $29.81$s, reduces aggregate drafted-token acceptance from $0.597$ to $0.509$,
 and lowers block efficiency from $5.832$ to $4.961$, while GSM8K accuracy
-remains statistically unchanged ($222/263$ benign versus $225/263$ attacked).
-These results establish prompt-side speculative-decoding slowdown as a concrete
-inference-cost attack: the model still solves the task, but the system loses a
-substantial fraction of its speculative speedup.
+remains statistically unchanged. We then extend the attack to a calibration-batch
+universal adversarial prefix optimized over multi-timestamp target rollouts.
+The strongest accuracy-preserving universal prefix raises mean sample time to
+$38.61$s ($+67.1\%$ over the benign token-wise baseline), lowers aggregate
+acceptance to $0.390$, and lowers block efficiency to $3.731$, while matching
+the benign GSM8K accuracy exactly at $222/263$. These results establish
+prompt-side speculative-decoding slowdown as a concrete inference-cost attack:
+the model still solves the task, but the system loses a substantial fraction of
+its speculative speedup.
 \end{abstract}
 
 \input{Sections/Intro}
@@ -140,11 +145,14 @@ discrete attack is controlled by relaxed optimization error and projection
 distortion. This directly justifies the manifold-attraction penalty in our
 optimization objective. Empirically, the attack is not merely a first-token
 curiosity: the optimized prefix family degrades end-to-end token-wise
-speculative decoding on a matched 263-sample GSM8K evaluation, increasing wall
-time and decreasing aggregate acceptance and block efficiency without harming
-task accuracy. The main practical implication is clear. Lossless decoding does
-not imply cost robustness. A prompt can preserve answer quality while forcing
-the verifier to do substantially more work, turning speculative decoding into a
+speculative decoding on a matched 263-sample GSM8K evaluation. The initial
+boundary attack already produces a substantial latency penalty, and the
+calibration-batch universal-prefix extension amplifies that effect further:
+runtime rises from $23.10$s to $38.61$s while aggregate acceptance and block
+efficiency contract sharply, yet GSM8K accuracy remains at the benign baseline.
+The main practical implication is clear. Lossless decoding does not imply cost
+robustness. A prompt can preserve answer quality while forcing the verifier to
+do substantially more work, turning speculative decoding into a
 prompt-controlled inference-cost surface.
 
 \input{Sections/Appendix}

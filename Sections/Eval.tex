@@ -13,9 +13,10 @@ We evaluate ADSD in the reproduced HSD workspace with:
 
 The evaluation has two layers. First, we run the Palmetto soft-prefix search to
 measure exact projected first-token collapse on the optimized boundary context.
-Second, we inject a matched benign or adversarial prefix at the same assistant
-boundary and run the full 263-sample GSM8K evaluation to measure the system
-effect on end-to-end speculative decoding.
+Second, we inject either a matched boundary prefix or a calibration-batch
+universal prefix into the same token-wise 263-sample GSM8K evaluation. All
+end-to-end benchmark numbers in this section are therefore reported against the
+same matched benign token-wise baseline.
 
 \subsection{Metrics}
 
@@ -41,6 +42,10 @@ Accepted drafted tokens per verifier step:
 \]
 \item \textbf{Mean sample time.}
 Wall-clock generation time averaged over the 263 GSM8K prompts.
+\item \textbf{Decoding speed.}
+The HSD-style throughput statistic computed from the speculative counters in
+the reproduced workspace. This complements wall-clock time with a counter-based
+speed measure derived from accepted drafted tokens and elapsed decoding time.
 \item \textbf{Accuracy.}
 The standard GSM8K numeric-answer accuracy extracted from the evaluator output.
 \end{itemize}
@@ -82,45 +87,87 @@ This stability matters. It indicates that the attack is not an artifact of a
 single penalty setting; the same discrete attack remains optimal across a
 meaningful range of projection-distortion regularization strengths.
 
-\subsection{Matched 263-Sample Boundary Evaluation}
+\subsection{Calibration-Batch Universal Prefix Search}
 
-We next evaluate the actual systems effect on a matched 263-sample GSM8K run.
-The benign condition prepends the same five-token boundary budget with the
-instruction \texttt{Please think step by step}. The attacked condition prepends
-the adversarial typo-like boundary prefix at the identical assistant boundary.
-Everything else is held fixed.
+We next extend the attack from a single boundary context to a calibration-batch
+universal prefix. For each calibration size $N \in \{1,2,4,8\}$, we optimize a
+shared five-token prefix over $K=64$ target rollouts and then retain the best
+projected prefix under the exact verifier-aligned ranking rule. The result is a
+clear monotone pattern: every calibration size produces a stronger discrete
+prefix than the manual seed, and every recovered universal prefix drives the
+exact projected first-token acceptance to zero on its calibration batch.
 
 \begin{table}[t]
 \centering
-\caption{Matched benign-boundary versus attacked-boundary evaluation on the
-263-sample token-wise GSM8K run. Lower aggregate acceptance and block
-efficiency are worse for the system; higher mean sample time is worse for the
-system.}
-\label{tab:matched-263}
-\begin{tabular}{lccc}
+\caption{Calibration-batch universal-prefix search with $K=64$ target
+rollout tokens. All settings outperform the manual seed; $N=4$ yields the
+best accuracy-preserving universal attack in the held-out token-wise
+benchmark.}
+\label{tab:uat-search}
+\footnotesize
+\begin{tabular}{lcccc}
 \toprule
-Metric & Benign boundary & Attacked boundary & Relative change \\
+Calibration size & Prefix snippet & $\alpha_1$ & Weighted TV & Beats seed \\
 \midrule
-Mean sample time (s) & $23.10$ & $29.81$ & $+29.0\%$ \\
-Aggregate acceptance (mean) & $0.597$ & $0.509$ & $-14.8\%$ \\
-Block efficiency (mean) & $5.832$ & $4.961$ & $-14.9\%$ \\
-GSM8K accuracy & $222/263$ & $225/263$ & $+1.1$ points \\
+$N=1$ & \texttt{Complete\textbackslash u041b\textbackslash u0410 ...} & $0.0000$ & $0.2459$ & yes \\
+$N=2$ & \texttt{total\textbackslash u5bf9\textbackslash u672a\textbackslash u6765 ...} & $0.0000$ & $0.3285$ & yes \\
+$N=4$ & \texttt{total\textbackslash u5bf9\textbackslash u672a\textbackslash u6765 ...} & $0.0000$ & $0.2563$ & yes \\
+$N=8$ & \texttt{\textbackslash ufffd the next symbol only} & $0.0000$ & $0.2173$ & yes \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:matched-263} captures the central result of the paper. The
-adversarial boundary does not break the model's task behavior. Instead, it
-forces the verifier to do more work while the target model still completes the
-reasoning chain correctly. Mean sample time rises by roughly $29\%$, while both
-aggregate acceptance and block efficiency fall by about $15\%$. At the same
-time, GSM8K accuracy remains unchanged within ordinary sampling variance.
+The calibration-batch attack is important for two reasons. First, it confirms
+that early verifier collapse is not restricted to a single hand-crafted
+boundary context. Second, it exposes a useful trade-off frontier: some
+universal prefixes maximize slowdown aggressively, while others preserve the
+task behavior of the benign baseline almost exactly.
+
+\subsection{Token-Wise 263-Sample Benchmark}
+
+Table~\ref{tab:tokenwise-benchmark} reports the matched 263-sample token-wise
+benchmark. The benign condition prepends the same five-token budget with the
+instruction \texttt{Please think step by step}. We then compare three attack
+families under the identical evaluator: the original boundary attack, the
+strongest universal-prefix attack ($N=2$), and the strongest
+accuracy-preserving universal-prefix attack ($N=4$).
+
+\begin{table}[t]
+\centering
+\caption{Token-wise 263-sample GSM8K benchmark. Lower aggregate acceptance,
+block efficiency, and decoding speed are worse for the system; higher mean
+sample time is worse for the system.}
+\label{tab:tokenwise-benchmark}
+\footnotesize
+\begin{tabular}{lccccc}
+\toprule
+Setting & Time (s) & Agg. acc. & Block eff. & Speed & GSM8K acc. \\
+\midrule
+Benign baseline & $23.10$ & $0.597$ & $5.832$ & $79.55$ & $222/263$ \\
+Boundary attack (\textit{it\`a}) & $29.81$ & $0.509$ & $4.961$ & $68.22$ & $225/263$ \\
+Universal prefix ($N=4$) & $38.61$ & $0.390$ & $3.731$ & $51.68$ & $222/263$ \\
+Universal prefix ($N=2$) & $51.60$ & $0.358$ & $3.506$ & $46.09$ & $202/263$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:tokenwise-benchmark} captures the central empirical result of
+the paper. The original boundary attack already increases runtime by about
+$29\%$ while preserving task accuracy. The universal-prefix extension widens
+the attack surface substantially. The $N=2$ universal prefix is the strongest
+cost attack overall, pushing mean sample time to $51.60$s and cutting decoding
+speed to $46.09$, but it also degrades GSM8K accuracy. The $N=4$ universal
+prefix is the most important systems result: it raises mean sample time from
+$23.10$s to $38.61$s ($+67.1\%$), lowers aggregate acceptance from $0.597$ to
+$0.390$, lowers block efficiency from $5.832$ to $3.731$, and reduces decoding
+speed from $79.55$ to $51.68$, while matching the benign GSM8K accuracy exactly
+at $222/263$.
 
 This is exactly the attack profile a systems paper should care about. If the
 prefix merely caused nonsense outputs, the slowdown would be easy to dismiss as
-degenerate prompting. Here the target model instead repairs the adversarial
-boundary and still solves the task, which means the user-visible output layer
-does not reveal the compute-side attack.
+degenerate prompting. Instead, the universal-prefix attack demonstrates that
+speculative decoding can be driven into a materially less efficient regime
+while preserving the user-visible task accuracy of the benign baseline.
 
 \subsection{Interpretation}
 
@@ -128,24 +175,27 @@ Three conclusions follow.
 
 First, first-token collapse is a useful attack primitive, not a misleading toy
 metric. The soft search drives exact projected $\alpha_1$ from $0.1597$ down to
-$0.0288$, and the resulting discrete attack family produces measurable
-end-to-end degradation on the full evaluation.
+$0.0288$, and the calibration-batch universal search drives the projected
+calibration $\alpha_1$ all the way to zero for every $N \in \{1,2,4,8\}$.
+These projected prefixes then produce substantial end-to-end degradation on the
+held-out token-wise evaluation.
 
-Second, aggregate metrics alone would understate the vulnerability. The attack
-works by creating an early verifier speed bump. Once the target model repairs
-the boundary, later generations partially realign, so answer quality remains
-high. This is precisely why first-token acceptance, aggregate acceptance, block
-efficiency, and wall time must be reported together.
+Second, counter-based verifier metrics and wall-clock latency move in lockstep.
+The attacks that lower aggregate acceptance and block efficiency also lower the
+HSD-style decoding-speed statistic and raise real generation time. This
+agreement makes the slowdown effect difficult to attribute to incidental
+hardware noise alone.
 
 Third, the attack is already practically meaningful at modest prompt budget.
-The current attack uses only a short boundary prefix, yet it extracts a large
-runtime penalty from a lossless decoding system without requiring any model
-parameter changes or API privileges beyond prompt control.
+The strongest accuracy-preserving result uses only a short five-token universal
+prefix, yet it raises runtime by more than two thirds without requiring any
+model parameter changes or API privileges beyond prompt control.
 
 \subsection{Scope}
 
 Our experiments focus on the token-wise verifier because it provides the
-cleanest connection between the exact acceptance rule and the soft-prefix
-objective. The next empirical axis is not to re-establish existence, but to map
-the attack surface more fully: prefix-length sweeps, random and greedy
-baselines, and transfer to stronger block-wise or hierarchical verifiers.
+cleanest connection between the exact acceptance rule and the verifier-aligned
+optimization objective. Within that setting, the empirical picture is already
+clear: prompt-side optimization can translate isolated verifier collapse into a
+large end-to-end slowdown, and calibration-batch universal prompting amplifies
+that effect considerably.

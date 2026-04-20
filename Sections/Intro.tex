@@ -66,12 +66,15 @@ recovers the same projected five-token attack across a sweep of
 projection-penalty strengths, reducing exact first-token acceptance from
 $\alpha_1 = 0.1597$ for the manual comparison seed to $\alpha_1 = 0.0288$ on
 the optimized search context. We then move beyond isolated first-token
-measurements and evaluate a matched benign-boundary versus attacked-boundary
-setup on 263 GSM8K prompts. The attacked boundary raises mean sample time from
-$23.10$s to $29.81$s, lowers mean aggregate acceptance from $0.597$ to $0.509$,
-and reduces mean block efficiency from $5.832$ to $4.961$. Crucially, answer
-quality is preserved within noise: GSM8K accuracy is $222/263$ for the benign
-boundary and $225/263$ for the attacked boundary.
+measurements and evaluate all end-to-end attacks against the same matched
+token-wise benign baseline on 263 GSM8K prompts. The initial boundary attack
+raises mean sample time from $23.10$s to $29.81$s, lowers mean aggregate
+acceptance from $0.597$ to $0.509$, and reduces mean block efficiency from
+$5.832$ to $4.961$. We then strengthen the attack with a calibration-batch
+universal prefix optimized over multi-timestamp target rollouts. The best
+accuracy-preserving universal prefix raises mean sample time to $38.61$s,
+lowers mean aggregate acceptance to $0.390$, and reduces mean block efficiency
+to $3.731$, while matching the benign GSM8K accuracy exactly at $222/263$.
 
 Our contributions are:
 \begin{itemize}
@@ -86,8 +89,9 @@ TV-Lipschitz assumption, yielding a principled penalized objective that
 explicitly controls projection distortion.
 \item We implement a straight-through soft-prefix optimizer and show that its
 projected attacks materially degrade end-to-end speculative efficiency on a
-real draft-target pair, while leaving downstream GSM8K accuracy essentially
-unchanged.
+real draft-target pair; furthermore, a calibration-batch universal-prefix
+extension pushes the latency penalty substantially beyond the initial boundary
+attack while preserving the benign token-wise accuracy baseline.
 \end{itemize}
 
 The broader message is that speculative decoding exposes a distinct
