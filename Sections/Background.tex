@@ -34,52 +34,48 @@ protocol.
 
 \subsection{Related Work}
 
-\paragraph{Alignment-centric speculative enhancements.}
-One major line of work treats low acceptance as a model-alignment problem.
-Online Speculative Decoding adapts the draft model to the observed query
-distribution \citep{liu2023online}. Direct alignment methods train the draft
-to better match the target on instruction-following behavior
-\citep{goel2024direct}, and related alignment-aware designs further improve
-acceptance by narrowing the draft-target discrepancy under benign workloads
-\citep{wang2025alignment}. The unifying assumption in this line is that poor
-acceptance reflects an incidental mismatch to be corrected so that speculative
-speedup is restored.
+\paragraph{Speculative decoding under benign prompt assumptions.}
+The speculative-decoding literature overwhelmingly treats low acceptance as an
+efficiency problem to be repaired. Alignment-centric approaches adapt or train
+the draft model so that its token proposals more closely match the target
+\citep{liu2023online,goel2024direct,wang2025alignment}. Verification-centric
+approaches instead redesign the accept-reject mechanism itself, for example by
+predicting likely failures and halting drafting adaptively, or by recovering
+useful work even under partial disagreement
+\citep{agrawal2024adaedl,bachmann2025judge,zhou2026hsd}. These methods differ
+substantially in mechanism, but they share the same premise: prompts are
+treated as benign, and the system designer's goal is to preserve acceptance
+under ordinary inputs. Our work begins exactly where that premise breaks down.
 
-\paragraph{Verification-centric speculative enhancements.}
-A second line of work treats low acceptance as a verification problem rather
-than purely a draft-training problem. AdaEDL predicts when acceptance is
-likely to fail and shortens drafting adaptively \citep{agrawal2024adaedl}.
-Judge Decoding redesigns acceptance logic beyond simple model agreement
-\citep{bachmann2025judge}, and HSD enlarges the verifier design space by
-recovering useful work even when the draft and target do not align perfectly
-\citep{zhou2026hsd}. These systems are more flexible than alignment-only
-approaches, but they still study speculative decoding under the default
-assumption of benign, in-distribution inputs.
-
-Taken together, both paradigms seek to preserve acceptance under ordinary
-serving conditions. That leaves a common blind spot: neither line asks whether
-an adversary can intentionally manipulate prompt text to collapse acceptance
-and convert speculative acceleration into additional verifier work. ADSD is
-designed precisely for that setting.
-
-\paragraph{Adversarial prompt optimization.}
+\paragraph{Prompt optimization as an attack primitive.}
 Outside speculative decoding, adversarial NLP has shown that short optimized
-token sequences can reliably manipulate model behavior. Universal adversarial
-triggers demonstrate that input-agnostic token strings can induce systematic
-failures across many examples \citep{wallace2019uat}. In aligned-chat settings,
-universal suffix attacks and evolutionary jailbreak search methods such as
-AutoDAN show that discrete prompt optimization can steer models toward harmful
-semantic outputs \citep{zou2023universal,liu2023autodan}. Those methods are
-well suited to output manipulation, where the goal is to change the semantic
-content of the response. Our setting is different: we optimize prompts to alter
-the \emph{systems behavior} of speculative verification itself. The target
-answer can remain correct while the verifier is forced to do substantially more
-work.
+token sequences can manipulate model behavior in highly transferable ways.
+Universal adversarial triggers and suffixes demonstrate that a single
+input-agnostic string can induce systematic failures across many examples
+\citep{wallace2019uat,zou2023universal}. Evolutionary and discrete search
+methods such as AutoDAN further show that effective prompts need not resemble
+natural language \citep{liu2023autodan}. However, these attacks primarily
+target semantic behavior: they seek harmful, policy-violating, or incorrect
+outputs. ADSD instead targets the verification dynamics of the serving
+mechanism itself. The central object of manipulation is not the meaning of the
+response, but the efficiency of the draft-target interaction that produces it.
 
-\paragraph{Prompt-based inference-cost attacks.}
-The closest attack-style prior art is Engorgio, which constructs prompts that
-suppress \texttt{<EOS>} and induce abnormally long outputs in ordinary
-autoregressive decoding \citep{dong2024engorgio}. Our work is related in
-spirit but differs in mechanism. Engorgio attacks output length in standard
-decoding. ADSD attacks the acceptance process in speculative decoding by making
-draft proposals hard for the verifier to accept.
+\paragraph{Inference-cost and availability attacks.}
+The security literature has also shifted toward attacks that inflate latency,
+energy, or compute cost rather than model error alone. Sponge examples show
+that carefully constructed inputs can force neural networks toward worst-case
+energy-latency behavior \citep{shumailov2021sponge}. In autoregressive LLMs,
+Engorgio achieves a related goal by suppressing \texttt{<EOS>} and inducing
+abnormally long outputs, thereby increasing per-request inference cost
+\citep{dong2024engorgio}. ADSD belongs to this availability-oriented family,
+but its mechanism is substantially different. Rather than elongating or
+degenerating the output, it attacks the acceptance process inside speculative
+decoding itself. This makes the degradation both more targeted and potentially
+stealthier: the speedup can disappear even when the final answer remains
+semantically benign.
+
+Taken together, these lines of work expose a clear gap. Prior speculative
+decoding research assumes benign prompts and tries to maximize acceptance;
+prior prompt attacks mostly target semantics; and prior availability attacks do
+not study the verifier structure of speculative decoding. ADSD is designed for
+precisely that missing setting.

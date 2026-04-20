@@ -1,36 +1,47 @@
 \section{Introduction}
 
-Lossless acceleration has become one of the central systems ideas in modern
-large language model (LLM) serving. Among these methods, speculative decoding
-is especially attractive because it promises a rare combination: substantial
-speedup without changing the target model's output distribution
-\citep{leviathan2023speculative}. That guarantee, however, is semantic rather
-than operational. It says that the final answer distribution is preserved; it
-does not say that the serving stack is robust to adversarial inputs that
-increase the amount of verifier work required to realize that distribution.
+Autoregressive generation in large language models (LLMs) is fundamentally
+memory-bandwidth bound, making inference at scale exceptionally costly. To
+mitigate this, lossless acceleration paradigms---most notably speculative
+decoding \citep{leviathan2023speculative}---have been rapidly adopted across
+modern LLM serving stacks. By pairing a smaller draft model with a larger
+target verifier, speculative decoding achieves substantial speedups without
+altering the final output distribution. However, this guarantee of semantic
+equivalence masks a severe operational vulnerability: the mechanism remains
+efficient only when user prompts organically induce high token-level alignment
+between the draft and target models.
 
-This distinction exposes a natural systems vulnerability. Speculative decoding
-achieves speedup only when a small draft model remains well aligned with a
-larger target verifier. When that alignment breaks down, drafted blocks are
-rejected, verifier intervention increases, and the expected latency gains can
-evaporate. Most prior work studies this acceptance bottleneck from the
-defensive side by improving draft-target alignment, modifying verification, or
-adapting draft length online
+This assumption is fragile. Once draft-target agreement deteriorates, drafted
+blocks are rejected, verifier intervention increases, and the system is forced
+back toward its worst-case sequential regime. Most prior work studies this
+acceptance bottleneck from the defensive side by improving draft-target
+alignment, redesigning verification, or adapting draft length online
 \citep{liu2023online,goel2024direct,agrawal2024adaedl,bachmann2025judge,wang2025alignment,zhou2026hsd}.
 We study the complementary adversarial question: can a short prompt prefix
 erase the efficiency gains of speculative decoding while preserving the
 user-visible task outcome?
 
-This attack surface is practical in deployment. The attacker does not need
-custom scheduler privileges or parameter access at inference time. Instead, the
-attacker controls only prompt text. Because speculative throughput depends
-directly on draft-target agreement, prompt-side inputs can act as algorithmic
-levers: they can induce draft behavior that the target repeatedly corrects,
-thereby pushing the system back toward its worst-case sequential regime. For
-cloud APIs, such degradation threatens latency predictability and inflates the
-cost of servicing a request. For on-device and edge deployments, it increases
-the energy consumed per generated token, even when the final response remains
-semantically benign.
+This question sits within a broader shift in the security landscape of machine
+learning systems. Adversaries increasingly target system availability and
+inference cost rather than semantic correctness alone. Sponge examples showed
+that carefully crafted inputs can drive neural networks toward worst-case
+energy-latency behavior \citep{shumailov2021sponge}. More recently, Engorgio
+demonstrated that autoregressive LLMs can be coerced into abnormally long
+generations, inflating compute cost and inducing denial-of-service style
+behavior \citep{dong2024engorgio}. Yet such attacks are often conspicuous
+because they fundamentally alter output length or visibly degrade response
+quality.
+
+Speculative decoding creates a stealthier attack surface. An attacker need not
+force repetitive loops or degenerate text. Instead, a short adversarial prefix
+can directly target the draft-target verification mechanism and deliberately
+collapse verifier acceptance. When draft proposals are repeatedly rejected,
+the system discards the speculative speedup and reverts toward worst-case
+sequential execution. For cloud providers, this degradation functions as a
+denial-of-wallet attack that inflates per-request compute costs and threatens
+latency service-level objectives. For edge deployments, it becomes a silent
+energy-exhaustion attack, even while the final response remains semantically
+benign to standard safety filters.
 
 \begin{figure}[t]
 \centering
@@ -52,32 +63,17 @@ substantially more work.}
 \label{fig:threat-model}
 \end{figure}
 
-The technical obstacle is discrete. Gradient-based prompt search is naturally
-continuous, but deployment requires a discrete text string. In practice, this
-means that naive continuous optimization can discover a strong relaxed attack
-that fails after projection back to tokens. Our central methodological claim is
-that this continuous-to-discrete projection gap must be treated as a first-class
-object. We therefore develop a theoretically bounded optimizer that
-explicitly penalizes projection distortion and ranks retained attacks by their
-behavior in the actual verifier pipeline.
-
-On the algorithmic side, we instantiate this idea in two stages. The first is
-a verifier-aligned soft-prefix attack that targets early verifier collapse at
-the assistant boundary. The second strengthens the attack into a
-calibration-batch universal prefix optimized across multiple prompts and
-multiple timestamps, with a gradient-guided discrete seed-search stage that
-improves the quality of the final projected attack.
-
-We evaluate ADSD in the reproduced HSD workspace using
-\texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} as the draft model and
-\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8} as the target model. On a matched
-263-sample token-wise GSM8K benchmark, an optimized single-prompt attack raises
-mean sample time from $23.10$s to $29.81$s while reducing aggregate acceptance
-from $0.597$ to $0.509$ and block efficiency from $5.832$ to $4.961$. The
-stronger calibration-batch universal attack raises mean sample time to $38.61$s, lowers
-aggregate acceptance to $0.390$, lowers block efficiency to $3.731$, and
-reduces decoding speed to $51.68$, while matching the benign token-wise GSM8K
-accuracy exactly at $222/263$.
+The primary technical obstacle is the continuous-to-discrete optimization gap.
+The natural attack objective---maximizing draft-target disagreement---is most
+amenable to gradient-based search in a continuous embedding space. Deployment,
+however, requires a discrete text string. Naive continuous optimization can
+therefore discover powerful relaxed adversarial states that fail
+catastrophically when projected back to valid tokens. In this work, we elevate
+that projection gap to a first-class object of study and introduce ADSD, a
+principled framework for prompt-side acceptance collapse. Rather than relying
+on heuristic discrete search alone, ADSD explicitly controls projection
+distortion and constructs deployable adversarial prefixes that survive the
+transition from continuous optimization to real text.
 
 Our contributions are:
 \begin{itemize}
@@ -85,15 +81,12 @@ Our contributions are:
 continuous-to-discrete optimization problem, prove a prompt-waywardness
 impossibility result, and derive a relaxation-gap bound that justifies
 explicit projection-distortion control.
-\item We introduce ADSD, translating our bounded theoretical framework into a
-penalized straight-through optimizer. Rather than relying on heuristic
-discrete search, ADSD explicitly controls projection distortion during
-continuous optimization to successfully generate universal adversarial
-prefixes.
-\item We show that our prompt-only attacks can
-materially degrade speculative efficiency, and that the strongest
-accuracy-preserving universal prefix raises end-to-end runtime by $67.1\%$ on
-a matched token-wise benchmark.
+\item We introduce ADSD, a verifier-aligned framework for prompt-side
+acceptance collapse that optimizes adversarial prefixes while respecting the
+discrete deployment constraint.
+\item We show empirically that prompt-only attacks can materially degrade
+speculative efficiency while preserving user-visible task quality, exposing
+lossless acceleration as a prompt-controlled inference-cost surface.
 \end{itemize}
 
 The broader message is simple. Lossless output semantics do not imply cost
