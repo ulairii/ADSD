@@ -6,3 +6,12 @@ main.fls
 main.log
 main.out
 main.pdf
+neurips2026_clean/*.aux
+neurips2026_clean/*.bbl
+neurips2026_clean/*.blg
+neurips2026_clean/*.fdb_latexmk
+neurips2026_clean/*.fls
+neurips2026_clean/*.log
+neurips2026_clean/*.out
+neurips2026_clean/*.pdf
+neurips2026_clean_source.zip

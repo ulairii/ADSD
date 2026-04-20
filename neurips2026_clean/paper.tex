@@ -1,0 +1,115 @@
+\documentclass{article}
+
+% if you need to pass options to natbib, use, e.g.:
+%     \PassOptionsToPackage{numbers, compress}{natbib}
+% before loading neurips_2026
+
+% The authors should use one of these tracks.
+% Before accepting by the NeurIPS conference, select one of the options below.
+% 0. "default" for submission
+\usepackage{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{tabularx}
+\makeatletter
+\setlength{\@neuripsbelowcaptionskip}{10\p@}
+\makeatother
+
+\newcommand{\tv}{\mathrm{TV}}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{assumption}[theorem]{Assumption}
+
+\title{ADSD: Prompt-Side Acceptance Collapse Attacks on Speculative Decoding}
+
+\author{%
+  Anonymous Authors \\
+  Anonymous Institution \\
+  Anonymous Address \\
+  \texttt{anonymous@example.com} \\
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Lossless acceleration schemes guarantee output equivalence, not operational
+robustness. Speculative decoding is a particularly exposed example: its
+throughput depends on fine-grained alignment between a small draft model and a
+large target verifier, creating a prompt-controlled inference-cost surface. We
+study adversarial prefixes that preserve user-visible task behavior while
+collapsing verifier acceptance and erasing the latency benefit of speculative
+decoding. We formulate this as a continuous-to-discrete prompt optimization
+problem, show via a prompt-waywardness proposition that unconditional
+projection guarantees are impossible, and prove under a TV-Lipschitz assumption
+that the projected discrete attack gap is controlled by relaxed optimization
+error and an explicit projection-distortion term. Algorithmically, we
+instantiate this framework in a verifier-aligned straight-through optimizer
+with soft-collapse, total variation, reverse KL, entropy, and
+projection-distortion terms, and extend it to a calibration-batch
+universal-prefix attack with multi-timestamp weighting and gradient-guided
+discrete seed search. In a white-box setup with
+\texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} drafting for
+\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, Palmetto search reduces exact
+projected first-token acceptance from $\alpha_1=0.1597$ for a manual seed to
+$\alpha_1=0.0288$ for the optimized boundary attack. On a matched 263-sample
+token-wise GSM8K benchmark, the boundary attack raises mean sample time from
+$23.10$s to $29.81$s while reducing aggregate acceptance from $0.597$ to
+$0.509$. The stronger universal-prefix attack raises mean sample time to
+$38.61$s ($+67.1\%$ over the benign baseline), lowers aggregate acceptance to
+$0.390$, lowers block efficiency to $3.731$, and preserves the benign GSM8K
+accuracy exactly at $222/263$. These results expose a concrete vulnerability in
+lossless acceleration: a short prompt can leave final answers intact while
+forcing the verifier to do substantially more work.
+\end{abstract}
+
+\input{Sections/Intro}
+\input{Sections/Background}
+\input{Sections/Threat}
+\input{Sections/Methodology}
+\input{Sections/Eval}
+
+\section{Conclusion}
+
+We introduced ADSD, a prompt-side attack view of speculative decoding centered
+on the continuous-to-discrete relaxation gap. The theory section identifies the
+projection obstacle, proves that unconditional nearest-neighbor recovery is
+impossible, and shows that under TV-Lipschitz model behavior the projected
+discrete attack is controlled by relaxed optimization error and projection
+distortion. This directly justifies the manifold-attraction penalty in our
+optimization objective. Empirically, the attack is not merely a first-token
+curiosity: the optimized prefix family degrades end-to-end token-wise
+speculative decoding on a matched 263-sample GSM8K evaluation. The initial
+boundary attack already produces a substantial latency penalty, and the
+calibration-batch universal-prefix extension amplifies that effect further:
+runtime rises from $23.10$s to $38.61$s while aggregate acceptance and block
+efficiency contract sharply, yet GSM8K accuracy remains at the benign baseline.
+The main practical implication is clear. Lossless decoding does not imply cost
+robustness. A prompt can preserve answer quality while forcing the verifier to
+do substantially more work, turning speculative decoding into a
+prompt-controlled inference-cost surface.
+
+\input{Sections/Appendix}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\input{checklist}
+
+\end{document}
