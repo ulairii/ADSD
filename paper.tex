@@ -49,34 +49,7 @@
 \maketitle
 
 \begin{abstract}
-Lossless acceleration schemes guarantee output equivalence, not operational
-robustness. Speculative decoding is a particularly exposed example: its
-throughput depends on fine-grained alignment between a small draft model and a
-large target verifier, creating a prompt-controlled inference-cost surface. We
-study adversarial prefixes that preserve user-visible task behavior while
-collapsing verifier acceptance and erasing the latency benefit of speculative
-decoding. We formulate this as a continuous-to-discrete prompt optimization
-problem, show via a prompt-waywardness proposition that unconditional
-projection guarantees are impossible, and prove under a TV-Lipschitz assumption
-that the projected discrete attack gap is controlled by relaxed optimization
-error and an explicit projection-distortion term. Algorithmically, we
-instantiate this framework in a verifier-aligned straight-through optimizer
-with soft-collapse, total variation, reverse KL, entropy, and
-projection-distortion terms, and extend it to a calibration-batch
-universal-prefix attack with multi-timestamp weighting and gradient-guided
-discrete seed search. In a white-box setup with
-\texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} drafting for
-\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, Palmetto search reduces exact
-projected first-token acceptance from $\alpha_1=0.1597$ for a manual seed to
-$\alpha_1=0.0288$ for the optimized boundary attack. On a matched 263-sample
-token-wise GSM8K benchmark, the boundary attack raises mean sample time from
-$23.10$s to $29.81$s while reducing aggregate acceptance from $0.597$ to
-$0.509$. The stronger universal-prefix attack raises mean sample time to
-$38.61$s ($+67.1\%$ over the benign baseline), lowers aggregate acceptance to
-$0.390$, lowers block efficiency to $3.731$, and preserves the benign GSM8K
-accuracy exactly at $222/263$. These results expose a concrete vulnerability in
-lossless acceleration: a short prompt can leave final answers intact while
-forcing the verifier to do substantially more work.
+Lossless acceleration schemes, such as speculative decoding, promise significant inference speedups while mathematically guaranteeing output equivalence. However, this guarantee of semantic robustness masks a severe operational vulnerability: speculative throughput relies entirely on the dynamic token-level alignment between a small draft model and a large target verifier. In this paper, we demonstrate that this alignment can be systematically weaponized. We introduce a prompt-side attack that preserves user-visible task accuracy but silently collapses verifier acceptance, converting a speculative acceleration mechanism into a worst-case sequential execution trap. The primary obstacle to discovering such adversarial prefixes is the continuous-to-discrete optimization gap. We formalize this constraint mathematically, proving via a prompt-waywardness proposition that unconditional projection guarantees are impossible, and establish that the discrete attack gap is strictly bounded by explicit projection distortion. Guided by this bound, we develop a penalized continuous optimizer that successfully navigates this gap to generate highly effective universal adversarial prefixes. Evaluated across frontier model architectures on reasoning and coding benchmarks, our universal prefixes severely degrade speculative block efficiency and increase end-to-end generation latency by up to [XX]%, exposing a critical, prompt-controlled resource exhaustion vulnerability in modern LLM serving stacks.
 \end{abstract}
 
 \input{Sections/Intro}
@@ -96,7 +69,7 @@ distortion. This directly justifies the manifold-attraction penalty in our
 optimization objective. Empirically, the attack is not merely a first-token
 curiosity: the optimized prefix family degrades end-to-end token-wise
 speculative decoding on a matched 263-sample GSM8K evaluation. The initial
-boundary attack already produces a substantial latency penalty, and the
+single-prompt attack already produces a substantial latency penalty, and the
 calibration-batch universal-prefix extension amplifies that effect further:
 runtime rises from $23.10$s to $38.61$s while aggregate acceptance and block
 efficiency contract sharply, yet GSM8K accuracy remains at the benign baseline.

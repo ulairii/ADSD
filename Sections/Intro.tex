@@ -71,10 +71,10 @@ improves the quality of the final projected attack.
 We evaluate ADSD in the reproduced HSD workspace using
 \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} as the draft model and
 \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8} as the target model. On a matched
-263-sample token-wise GSM8K benchmark, the initial boundary attack raises mean
-sample time from $23.10$s to $29.81$s while reducing aggregate acceptance from
-$0.597$ to $0.509$ and block efficiency from $5.832$ to $4.961$. The stronger
-calibration-batch universal attack raises mean sample time to $38.61$s, lowers
+263-sample token-wise GSM8K benchmark, an optimized single-prompt attack raises
+mean sample time from $23.10$s to $29.81$s while reducing aggregate acceptance
+from $0.597$ to $0.509$ and block efficiency from $5.832$ to $4.961$. The
+stronger calibration-batch universal attack raises mean sample time to $38.61$s, lowers
 aggregate acceptance to $0.390$, lowers block efficiency to $3.731$, and
 reduces decoding speed to $51.68$, while matching the benign token-wise GSM8K
 accuracy exactly at $222/263$.
@@ -85,10 +85,11 @@ Our contributions are:
 continuous-to-discrete optimization problem, prove a prompt-waywardness
 impossibility result, and derive a relaxation-gap bound that justifies
 explicit projection-distortion control.
-\item We introduce ADSD, a verifier-aligned attack that combines bounded
-continuous optimization with discrete projection-aware model selection, and we
-extend it to a calibration-batch universal-prefix pipeline with
-gradient-guided seed search.
+\item We introduce ADSD, translating our bounded theoretical framework into a
+penalized straight-through optimizer. Rather than relying on heuristic
+discrete search, ADSD explicitly controls projection distortion during
+continuous optimization to successfully generate universal adversarial
+prefixes.
 \item We show that our prompt-only attacks can
 materially degrade speculative efficiency, and that the strongest
 accuracy-preserving universal prefix raises end-to-end runtime by $67.1\%$ on

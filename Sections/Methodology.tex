@@ -156,7 +156,7 @@ penalty rather than treating projection as a post-processing step.
 
 Motivated by Theorem~\ref{thm:relax-gap}, we construct a verifier-aligned
 objective that couples disagreement maximization with explicit control of the
-projection gap. The single-context attack targets the first verifier step,
+projection gap. Our initial single-prompt optimization targets the first verifier step,
 since early rejection is the most damaging to token-wise speculative
 throughput. Let $p^U$ and $q^U$ denote the target and draft next-token
 distributions after the relaxed prefix $U$. ADSD optimizes
@@ -204,7 +204,7 @@ initialization.
 
 \subsection{Calibration-Batch Universal Prefix}
 
-To move beyond a single boundary context, ADSD also optimizes a shared
+To move beyond a single prompt, ADSD also optimizes a shared
 universal prefix over a small calibration batch of GSM8K training prompts. For
 each calibration prompt $x^{(j)}$, the target model first produces a fixed
 continuation $y^{*(j)}_{1:K}$ of length $K$. These target-only rollouts define
@@ -230,7 +230,7 @@ J_{\mathrm{UAT}}(U) ={}&
 where $w_i \propto K-i+1$ linearly emphasizes earlier timestamps and
 $\bar{w}_i$ is the corresponding normalized restriction to the first $s$
 timestamps. The term $\mathrm{SC}$ is the same soft-collapse signal used in the
-single-context attack. The design preserves the theoretical emphasis on early
+single-prompt attack. The design preserves the theoretical emphasis on early
 verifier failure while extending disagreement pressure across a full target
 trajectory.
 
