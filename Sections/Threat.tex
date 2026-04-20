@@ -1,0 +1,43 @@
+\section{Threat Model and the Projection Obstacle}
+\label{sec:threat}
+
+We consider a white-box adversary that knows the target model, the draft
+model, the tokenizer, and the deployed speculative verification rule. The
+attacker may modify only a short assistant-boundary prefix in the prompt. The
+attacker cannot change model parameters, decoding temperature, system prompts,
+verification logic, scheduler behavior, or hardware placement at attack time.
+
+The attacker seeks a discrete prefix $z \in \mathcal{V}^m$ that maximizes
+speculative inefficiency while preserving user-visible task quality. At the
+systems level, the ideal objective is to reduce verifier acceptance and block
+efficiency, thereby increasing wall-clock latency. Algorithmically, we attack a
+verifier-aligned surrogate of this goal by maximizing early draft-target
+disagreement, since early rejection is the most damaging to end-to-end
+speculative throughput.
+
+To search over prompts, we relax the discrete prefix into a continuous prompt
+space. Let $E \in \mathbb{R}^{|\mathcal{V}| \times d}$ denote the shared token
+embedding matrix. A relaxed prefix is
+$U = (u_1, \dots, u_m)$, where each $u_t \in \Delta^{|\mathcal{V}|}$ is a
+simplex vector over the vocabulary and the corresponding relaxed embedding is
+\[
+e_t(U) = E^\top u_t.
+\]
+This relaxation makes gradient-based optimization possible, but deployment
+still requires a discrete projected prefix.
+
+The resulting difficulty is not merely practical; it is structural.
+
+\begin{proposition}[Prompt Waywardness]
+\label{prop:waywardness}
+For any finite token embedding space with at least two tokens and any
+$\delta > 0$, there exists a smooth objective $C$ over the convex hull of token
+embeddings and a relaxed optimizer $U^*$ such that $U^*$ lies within distance
+$\delta$ of a discrete token cell, yet the nearest-neighbor projection
+$\Pi(U^*)$ is arbitrarily suboptimal among all discrete prefixes.
+\end{proposition}
+
+Prompt waywardness formalizes the projection obstacle for adversarial prompt
+search: proximity in embedding space does not imply attack quality after
+projection. Any principled attack therefore needs more than a smooth surrogate;
+it must explicitly control the relaxed-to-discrete gap.

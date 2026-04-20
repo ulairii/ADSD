@@ -98,37 +98,43 @@
 
 
 \begin{abstract}
-Speculative decoding improves LLM throughput only when a small draft model
-remains well aligned with the large target verifier. We study the opposite
-regime: prompt-side inputs that deliberately collapse verifier acceptance and
-thereby erase the latency benefit of lossless decoding. We formulate this as a
-continuous-to-discrete optimization problem over short adversarial prefixes.
-Theoretically, we show that unconditional projection guarantees are impossible
-via a prompt-waywardness proposition, and prove that under a TV-Lipschitz
-assumption the projected discrete attack gap is bounded by the relaxed
-optimization error and an explicit projection-distortion term. Algorithmically,
-we instantiate this analysis in a verifier-aligned straight-through optimizer
-with soft-collapse, total-variation, reverse-KL, entropy, and
-projection-distortion terms, and extend it to a calibration-batch universal
-prefix attack with multi-timestamp weighting and gradient-guided discrete seed
-search. In a white-box setup with \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8}
-drafting for \texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, Palmetto search reduces
-exact projected first-token acceptance from $\alpha_1=0.1597$ for a manual seed
-to $\alpha_1=0.0288$ for the optimized boundary attack. On a matched
-263-sample token-wise GSM8K benchmark, the initial boundary attack raises mean
-sample time from $23.10$s to $29.81$s while reducing aggregate acceptance from
-$0.597$ to $0.509$. The stronger universal-prefix attack raises mean sample
-time to $38.61$s ($+67.1\%$ over the benign baseline), lowers aggregate
-acceptance to $0.390$, lowers block efficiency to $3.731$, and preserves the
-benign GSM8K accuracy exactly at $222/263$. These results establish a concrete
-inference-cost vulnerability in speculative decoding: a short prompt can leave
-task quality intact while forcing the verifier to do substantially more work.
+Lossless acceleration schemes promise output equivalence, but they do not
+guarantee cost robustness. Speculative decoding is a particularly sharp
+example: its throughput depends on the agreement between a small draft model
+and a large target verifier, which creates a prompt-side inference-cost attack
+surface. We study adversarial prefixes that preserve user-visible task behavior
+while collapsing verifier acceptance and erasing the latency benefit of
+speculative decoding. We formulate this as a continuous-to-discrete prompt
+optimization problem, show via a prompt-waywardness proposition that
+unconditional projection guarantees are impossible, and prove under a
+TV-Lipschitz assumption that the projected discrete attack gap is controlled by
+relaxed optimization error and an explicit projection-distortion term.
+Algorithmically, we instantiate this framework in a verifier-aligned
+straight-through optimizer with soft-collapse, total variation, reverse KL,
+entropy, and projection-distortion terms, and extend it to a calibration-batch
+universal-prefix attack with multi-timestamp weighting and gradient-guided
+discrete seed search. In a white-box setup with
+\texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} drafting for
+\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8}, Palmetto search reduces exact
+projected first-token acceptance from $\alpha_1=0.1597$ for a manual seed to
+$\alpha_1=0.0288$ for the optimized boundary attack. On a matched 263-sample
+token-wise GSM8K benchmark, the boundary attack raises mean sample time from
+$23.10$s to $29.81$s while reducing aggregate acceptance from $0.597$ to
+$0.509$. The stronger universal-prefix attack raises mean sample time to
+$38.61$s ($+67.1\%$ over the benign baseline), lowers aggregate acceptance to
+$0.390$, lowers block efficiency to $3.731$, and preserves the benign GSM8K
+accuracy exactly at $222/263$. These results expose a concrete vulnerability in
+lossless acceleration: a short prompt can leave final answers intact while
+forcing the verifier to do substantially more work.
 \end{abstract}
 
 \input{Sections/Intro}
-\input{Sections/Related}
-\input{Sections/Design}
+\input{Sections/Background}
+\input{Sections/Threat}
+\input{Sections/Framework}
+\input{Sections/Attack}
 \input{Sections/Eval}
+\input{Sections/Related}
 
 \section{Conclusion}
 

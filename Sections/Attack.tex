@@ -1,0 +1,102 @@
+\section{ADSD: Attack Algorithm and Implementation}
+\label{sec:attack}
+
+\subsection{Single-Context Soft-Prefix Attack}
+
+The first implemented pipeline targets the \emph{first verifier step}, since
+early rejection is the most damaging to token-wise speculative throughput. Let
+$p^U$ and $q^U$ denote the target and draft next-token distributions after the
+relaxed prefix $U$. ADSD optimizes
+\begin{align*}
+J(U) ={}&
+\underbrace{\sum_{y} q^U(y)\,\mathrm{softplus}\!\left(\log q^U(y)-\log p^U(y)\right)}_{\text{soft collapse}}
++ \beta \,\tv(p^U, q^U)
++ \eta \,\mathrm{KL}(q^U \Vert p^U) \\
+&- \tau \,\frac{1}{m}\sum_{t=1}^{m} H(u_t)
+- \lambda \,\rho(U).
+\end{align*}
+
+The soft-collapse term rewards draft overconfidence on tokens that the target
+assigns much smaller probability. The TV and reverse-KL terms enlarge the
+surrounding disagreement region, the entropy term sharpens the relaxed simplex
+vectors, and the projection penalty is the theory-guided term mandated by the
+relaxation-gap analysis.
+
+In the implementation, the prefix is parameterized by per-position vocabulary
+logits. A softmax converts those logits into simplex vectors, and Adam updates
+the logits directly. Each optimization step uses a straight-through argmax
+estimator: the forward pass uses the hard projected token at each position,
+while the backward pass differentiates through the softmax relaxation. The
+released code therefore optimizes over the full vocabulary while keeping the
+forward path faithful to the discrete token manifold used at deployment time.
+
+Although the theory is phrased in terms of explicit nearest-neighbor
+projection, the implementation uses argmax projection for computational
+efficiency. The theoretical link is preserved by retaining the explicit
+$L_2$ projection-distortion penalty $\rho(U)$ in the objective. Model selection
+is verifier-aligned: although the optimizer follows the smooth objective
+$J(U)$, the retained attack is ranked by its exact projected first-token
+acceptance
+\[
+\alpha_1 = \min\!\left(1, \frac{p(y_1)}{q(y_1)}\right),
+\]
+computed after hard projection in the actual speculative-decoding pipeline.
+
+In the experiments reported here, the core hyperparameters are a five-token
+prefix, Adam learning rate $0.3$, temperature $1.0$, entropy weight $0.01$, TV
+weight $1.0$, reverse-KL weight $0.1$, and gradient clipping at $1.0$. The
+projection weight $\lambda$ is calibrated automatically from the ratio between
+the unpenalized objective and the initial projection distortion, then swept on
+Palmetto through a multiplicative factor. Because the search landscape is
+highly non-convex, the implementation warm-starts the initial logits from a
+short manual adversarial seed and searches the full vocabulary around that
+initialization.
+
+\subsection{Calibration-Batch Universal Prefix Extension}
+
+To move beyond a single boundary context, ADSD also optimizes a shared
+universal prefix over a small calibration batch of GSM8K training prompts. For
+each calibration prompt $x^{(j)}$, the target model first produces a fixed
+continuation $y^{*(j)}_{1:K}$ of length $K$. These target-only rollouts define
+the temporal contexts on which the universal prefix is optimized.
+
+Let $p_i^{U,j}$ and $q_i^{U,j}$ denote the target and draft next-token
+distributions at timestamp $i$ on calibration prompt $j$. The universal-prefix
+objective is
+\begin{align*}
+J_{\mathrm{UAT}}(U) ={}&
+\frac{1}{N}\sum_{j=1}^{N}
+\Bigg[
+\lambda_c \sum_{i=1}^{s} \bar{w}_i\,
+\mathrm{SC}\!\left(q_i^{U,j}, p_i^{U,j}\right)
++ \beta \sum_{i=1}^{K} w_i\,\tv\!\left(q_i^{U,j}, p_i^{U,j}\right)
+\\
+&\qquad\qquad
++ \eta \sum_{i=1}^{K} w_i\,\mathrm{KL}\!\left(q_i^{U,j} \Vert p_i^{U,j}\right)
+\Bigg]
+- \tau \,\frac{1}{m}\sum_{t=1}^{m} H(u_t)
+- \lambda \,\rho(U),
+\end{align*}
+where $w_i \propto K-i+1$ linearly emphasizes earlier timestamps and
+$\bar{w}_i$ is the corresponding normalized restriction to the first $s$
+timestamps. The term $\mathrm{SC}$ is the same soft-collapse signal used in the
+single-context attack. The design thus preserves the theoretical emphasis on
+early verifier failure while extending disagreement pressure across the full
+target trajectory.
+
+\subsection{Gradient-Guided Discrete Seed Search}
+
+The universal-prefix implementation also includes a discrete initialization
+stage before continuous refinement. Starting from the warm-start seed, ADSD
+computes gradient-guided token replacements at each prefix position, retains
+the top vocabulary candidates, and runs a small beam search over the prefix.
+Candidate prefixes are ranked by exact projected first-token acceptance, with
+weighted trajectory TV used as the tie-breaker. The best discrete candidate
+then initializes the same straight-through optimization described above.
+
+This discrete seed-search stage is important in practice. It places the
+continuous optimizer in a stronger basin, reduces dependence on a single
+hand-written seed, and materially improves the quality of the projected
+universal prefix recovered after refinement. Empirically, it is this hybrid
+discrete-plus-continuous pipeline that produces the strongest universal attacks
+reported in the experiments.
