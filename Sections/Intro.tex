@@ -1,6 +1,15 @@
 \section{Introduction}
 
-Speculative decoding accelerates large language model (LLM) inference by
+Lossless acceleration has become one of the central systems ideas in modern
+large language model (LLM) serving. Among these methods, speculative decoding
+is especially attractive because it promises a rare combination: substantial
+speedup without changing the target model's output distribution
+\citep{leviathan2023speculative}. That guarantee, however, is semantic rather
+than operational. It says that the final distribution is preserved; it does not
+say that the resulting system is robust to adversarial inputs that manipulate
+the amount of verifier work required to realize that distribution.
+
+Speculative decoding accelerates LLM inference by
 letting a small draft model propose multiple tokens that are then verified by a
 larger target model in parallel \citep{leviathan2023speculative}. The resulting
 speedup is lossless at the output layer, but it is not free: it depends
@@ -34,7 +43,8 @@ discrete projected prefix. The main question is therefore not simply whether a
 smooth surrogate can be written down, but when optimizing that surrogate yields
 a strong \emph{discrete} attack after projection. This continuous-to-discrete
 gap is the central methodological challenge for prompt-side attacks on
-speculative decoding.
+speculative decoding, and the main methodological contribution of the paper is
+to make that gap explicit rather than treating it as an implementation detail.
 
 Our starting point is the token-wise verifier acceptance rule
 \[
@@ -89,8 +99,8 @@ Our contributions are:
 continuous-to-discrete adversarial optimization problem over verifier
 acceptance rather than output semantics.
 \item We prove a prompt-waywardness impossibility result and a relaxation-gap
-bound that makes the projection distortion term in the optimizer theoretically
-explicit.
+bound that makes the projection-distortion term in the optimizer
+theoretically explicit.
 \item We implement a verifier-aligned soft-prefix attack and a
 calibration-batch universal-prefix extension with gradient-guided discrete
 seed search, both of which are faithful to the released code path.

@@ -33,10 +33,26 @@ related in spirit but differs in mechanism. Engorgio attacks output length in
 standard autoregressive generation. Our setting attacks the verification rule in
 speculative decoding by making draft proposals difficult to accept.
 
+\paragraph{Adversarial prompt optimization and universal triggers.}
+Outside speculative decoding, a large literature studies adversarial prompts,
+universal triggers, and jailbreak suffixes. Universal adversarial triggers show
+that short input-agnostic token sequences can induce systematic failures across
+many examples \citep{wallace2019uat}. In aligned-chat settings, discrete and
+hybrid search methods such as the universal suffix attack of
+\citet{zou2023universal} and the hierarchical genetic search of
+\citet{liu2023autodan} demonstrate that prompt optimization can reliably steer
+model behavior toward harmful semantic outputs. Our problem is different in
+both objective and mechanism. We do not aim to bypass safety alignment or
+change the semantic content of the answer. Instead, we optimize prompts to
+alter the \emph{systems behavior} of speculative verification itself: the
+target output can remain correct while the verifier is forced to do
+substantially more work.
+
 \paragraph{Positioning.}
 The attack studied here lies at the intersection of systems efficiency and
-adversarial prompting. The speculative-decoding literature already establishes
-that throughput depends strongly on draft-target agreement. We turn that
-observation into a white-box prompt optimization problem and focus on the
-earliest verification events, where a single adversarial token can destroy the
-anticipated speculative speedup.
+adversarial prompting. The speculative-decoding literature establishes that
+throughput depends strongly on draft-target agreement, while the adversarial
+prompt literature shows that short optimized triggers can reliably manipulate
+model behavior. ADSD combines these perspectives: it turns verifier agreement
+into the attack surface and develops a continuous-to-discrete optimization
+framework for prompt-controlled inference-cost degradation.

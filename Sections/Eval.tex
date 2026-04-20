@@ -18,6 +18,17 @@ universal prefix into the same token-wise 263-sample GSM8K evaluation. All
 end-to-end benchmark numbers in this section are therefore reported against the
 same matched benign token-wise baseline.
 
+Each benchmarked GSM8K run uses the same evaluator configuration: batch size
+one, stochastic decoding (\texttt{do\_sample=True}), a per-sample cap of
+\texttt{max\_new\_tokens=512}, and the same speculative verifier settings used
+across all compared conditions. Per-sample wall-clock latency is recorded as
+the elapsed time around the actual speculative \texttt{generate(...)} call in
+the reproduced evaluator, while the counter-based metrics are computed from the
+saved speculative traces \texttt{draft\_eval}, \texttt{sample\_length}, and
+\texttt{total\_step}. This distinction matters: runtime is a real systems
+measurement, and aggregate acceptance and block efficiency are independent
+counter-based views of the same verifier behavior.
+
 \subsection{Metrics}
 
 We report five metrics that capture both attack strength and user-visible
@@ -51,8 +62,9 @@ The standard GSM8K numeric-answer accuracy extracted from the evaluator output.
 \end{itemize}
 
 The key systems claim is not merely that $\alpha_1$ can be collapsed in
-isolation, but that the resulting discrete attack degrades aggregate acceptance,
-block efficiency, and runtime while leaving task accuracy essentially intact.
+isolation, but that the resulting discrete attack degrades aggregate
+acceptance, block efficiency, decoding speed, and runtime while leaving task
+accuracy essentially intact.
 
 \subsection{Soft-Prefix Search Results}
 
@@ -163,11 +175,12 @@ $0.390$, lowers block efficiency from $5.832$ to $3.731$, and reduces decoding
 speed from $79.55$ to $51.68$, while matching the benign GSM8K accuracy exactly
 at $222/263$.
 
-This is exactly the attack profile a systems paper should care about. If the
-prefix merely caused nonsense outputs, the slowdown would be easy to dismiss as
-degenerate prompting. Instead, the universal-prefix attack demonstrates that
-speculative decoding can be driven into a materially less efficient regime
-while preserving the user-visible task accuracy of the benign baseline.
+This is the attack profile that makes speculative inefficiency a real systems
+problem rather than a prompt oddity. If the prefix merely caused obviously
+degraded outputs, the slowdown could be dismissed as degenerate prompting. In
+contrast, the universal-prefix attack drives the verifier into a materially
+less efficient regime while preserving the user-visible task accuracy of the
+benign baseline.
 
 \subsection{Interpretation}
 

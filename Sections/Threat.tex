@@ -9,9 +9,21 @@ verification logic, scheduler behavior, or hardware placement at attack time.
 
 The attacker seeks a discrete prefix $z \in \mathcal{V}^m$ that maximizes
 speculative inefficiency while preserving user-visible task quality. At the
-systems level, the ideal objective is to reduce verifier acceptance and block
-efficiency, thereby increasing wall-clock latency. Algorithmically, we attack a
-verifier-aligned surrogate of this goal by maximizing early draft-target
+systems level, the attack objective is to increase the expected verifier work
+required per request. We operationalize this through counter-based metrics such
+as aggregate acceptance and block efficiency together with wall-clock latency.
+Formally, the attacker seeks a short prefix that solves a constrained problem
+of the form
+\[
+\max_{z \in \mathcal{V}^m} \;\; \mathcal{L}_{\mathrm{cost}}(z)
+\qquad
+\text{s.t.}
+\qquad
+\mathcal{Q}(z) \geq \mathcal{Q}_{\mathrm{benign}} - \delta,
+\]
+where $\mathcal{L}_{\mathrm{cost}}$ denotes speculative inefficiency and
+$\mathcal{Q}$ denotes user-visible task quality. The implemented attack uses a
+verifier-aligned surrogate of this objective by maximizing early draft-target
 disagreement, since early rejection is the most damaging to end-to-end
 speculative throughput.
 
