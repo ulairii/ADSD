@@ -44,7 +44,8 @@ For any finite token embedding space with at least two tokens and any
 $\delta > 0$, there exists a smooth objective $C$ over the convex hull of token
 embeddings and a relaxed optimizer $U^*$ such that $U^*$ lies within distance
 $\delta$ of a discrete token cell, yet the nearest-neighbor projection
-$\Pi(U^*)$ is arbitrarily suboptimal among all discrete prefixes.
+$\Pi(U^*)$ yields a discrete prefix that is maximally suboptimal among all
+discrete candidates, minimizing the objective despite the relaxed proximity.
 \end{proposition}
 
 Prompt waywardness shows that proximity in embedding space does not imply
@@ -95,6 +96,15 @@ L_C := \sum_{i=1}^{\gamma} w_i (L_i^p + L_i^q)
 denote the aggregate Lipschitz constant of the weighted objective.
 \end{assumption}
 
+We emphasize that this assumption is intended locally rather than globally.
+For a deep transformer, the worst-case global Lipschitz constant is
+astronomically large and would make the bound vacuous. In the attack setting of
+interest, however, prompt optimization remains confined to a small embedding
+neighborhood around the initialized prefix. Within that local region, the
+empirical sensitivity of the draft and target distributions is substantially
+better behaved, which is the regime in which the projection penalty
+effectively controls the relaxed-to-discrete gap in practice.
+
 Under this assumption, the discrete quality of a projected relaxed solution can
 be bounded explicitly.
 
@@ -131,7 +141,7 @@ Combining the two inequalities yields the claim.
 We can also state an exact-recovery condition. Define the discrete attack
 margin
 \[
-\Gamma := C_d(z^*) - \max_{z \neq z^*} C_d(z).
+\Gamma := C_d(z^*) - \max_{z \in \mathcal{V}^m \setminus \{z^*\}} C_d(z).
 \]
 
 \begin{corollary}[Exact Recovery under Discrete Margin]
@@ -148,32 +158,43 @@ then
 \end{corollary}
 
 The theorem and corollary isolate the key design requirement: relaxed search
-must improve the surrogate objective while also staying close to the discrete
-token manifold. This is why ADSD uses an explicit projection-distortion
-penalty rather than treating projection as a post-processing step.
+must improve the disagreement objective while also staying close to the
+discrete token manifold. This is why ADSD uses an explicit
+projection-distortion penalty rather than treating projection as a
+post-processing step.
 
 \subsection{The ADSD Objective Formulation}
 
 Motivated by Theorem~\ref{thm:relax-gap}, we construct a verifier-aligned
 objective that couples disagreement maximization with explicit control of the
-projection gap. Our initial single-prompt optimization targets the first verifier step,
-since early rejection is the most damaging to token-wise speculative
-throughput. Let $p^U$ and $q^U$ denote the target and draft next-token
-distributions after the relaxed prefix $U$. ADSD optimizes
+projection gap. Our initial single-prompt optimization targets the first
+verifier step, since early rejection is the most damaging to token-wise
+speculative throughput. While Theorem~\ref{thm:relax-gap} establishes the
+projection bound for the true disagreement objective $C(U)$, directly
+optimizing raw TV can yield weak or unstable gradients once the two
+distributions separate sharply. We therefore optimize a smooth surrogate
+$J(U)$ that preserves the same projection penalty while sharpening the search
+toward draft-overconfident regions that induce verifier collapse. Let $p^U$
+and $q^U$ denote the target and draft next-token distributions after the
+relaxed prefix $U$. ADSD optimizes
 \begin{align*}
 J(U) ={}&
 \underbrace{\sum_{y} q^U(y)\,\mathrm{softplus}\!\left(\log q^U(y)-\log p^U(y)\right)}_{\text{soft collapse}}
 + \beta \,\tv(p^U, q^U)
 + \eta \,\mathrm{KL}(q^U \Vert p^U) \\
 &- \tau \,\frac{1}{m}\sum_{t=1}^{m} H(u_t)
-- \lambda \,\rho(U).
+- \lambda\rho(U).
 \end{align*}
 
 The soft-collapse term rewards draft overconfidence on tokens that the target
 assigns much smaller probability. The TV and reverse-KL terms enlarge the
-surrounding disagreement region, the entropy term sharpens the relaxed simplex
-vectors, and the projection penalty is the theory-guided component that keeps
-the optimizer near a realizable discrete attack.
+surrounding disagreement region and act as smooth surrogates for the verifier
+disagreement captured by $C(U)$. The entropy term sharpens the simplex vectors
+toward confident one-hot states, while the projection penalty $\rho(U)$ acts
+in Euclidean embedding space to anchor the optimization trajectory to the
+nearest realizable token manifold. The two regularizers therefore play
+different roles: entropy encourages decisiveness in the simplex, whereas
+$\rho(U)$ controls the actual relaxed-to-discrete gap.
 
 In the implementation, the prefix is parameterized by per-position vocabulary
 logits. A softmax converts those logits into simplex vectors, and Adam updates
