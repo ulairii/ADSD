@@ -49,38 +49,21 @@ collapsed in isolation, but that the resulting discrete attack degrades
 aggregate acceptance, block efficiency, decoding speed, and runtime while
 leaving task accuracy essentially intact.
 
-\subsection{Soft-Prefix Search Results}
+% \subsection{Soft-Prefix Search Results}
 
-The Palmetto search optimizes a five-token relaxed prefix and projects it to a
-discrete boundary string. Across the sweep
-$\lambda_{\rho}\in\{0.1, 0.25, 0.5, 1.0\}$, the optimizer consistently returns
-the same projected attack and the same best exact first-token acceptance. The
-manual comparison seed has exact $\alpha_1 = 0.1597$, while the optimized
-projected prefix reaches $\alpha_1 = 0.0288$. Thus, after projection, the
-search reduces verifier acceptance on the first drafted token by more than
-$5\times$ relative to the hand-written seed.
+% The Palmetto search optimizes a five-token relaxed prefix and projects it to a
+% discrete boundary string. Across the sweep
+% $\lambda_{\rho}\in\{0.1, 0.25, 0.5, 1.0\}$, the optimizer consistently returns
+% the same projected attack and the same best exact first-token acceptance. The
+% manual comparison seed has exact $\alpha_1 = 0.1597$, while the optimized
+% projected prefix reaches $\alpha_1 = 0.0288$. Thus, after projection, the
+% search reduces verifier acceptance on the first drafted token by more than
+% $5\times$ relative to the hand-written seed.
 
-\begin{table}[t]
-\centering
-\caption{Palmetto soft-prefix search. The optimizer is stable across the
-projection-penalty sweep: every setting recovers the same best projected
-five-token attack.}
-\label{tab:soft-search}
-\begin{tabular}{lcccc}
-\toprule
-Run family & $\lambda_{\rho}$ multiplier & best $\alpha_1$ & baseline $\alpha_1$ & best step \\
-\midrule
-rho sweep & $0.1$ & $0.0288$ & $0.1597$ & $1$ \\
-rho sweep & $0.25$ & $0.0288$ & $0.1597$ & $1$ \\
-rho sweep & $0.5$ & $0.0288$ & $0.1597$ & $1$ \\
-rho sweep & $1.0$ & $0.0288$ & $0.1597$ & $1$ \\
-\bottomrule
-\end{tabular}
-\end{table}
 
-This stability matters. It indicates that the attack is not an artifact of a
-single penalty setting; the same discrete attack remains optimal across a
-meaningful range of projection-distortion regularization strengths.
+% This stability matters. It indicates that the attack is not an artifact of a
+% single penalty setting; the same discrete attack remains optimal across a
+% meaningful range of projection-distortion regularization strengths.
 
 \subsection{Calibration-Batch Universal Prefix Search}
 

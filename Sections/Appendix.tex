@@ -9,6 +9,8 @@ optimizer over per-position vocabulary logits. The optimizer records exact
 projected first-token acceptance, TV, reverse KL, collapse score, and the
 projection-distortion trace for every candidate retained during search.
 
+During optimization, we observed that the penalized straight-through estimator is highly stable; sweeping the projection penalty weight $\lambda_\rho \in \{0.1, 0.25, 0.5, 1.0\}$ consistently recovered the exact same optimal discrete attack prefix.
+
 The calibration-batch universal-prefix pipeline extends the same code path with
 multi-timestamp target rollouts, linearly weighted trajectory disagreement, and
 a gradient-guided discrete seed-search stage that ranks candidate prefixes by
