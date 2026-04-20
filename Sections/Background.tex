@@ -1,4 +1,4 @@
-\section{Background and Preliminaries}
+\section{Background and Related Work}
 \label{sec:background}
 
 Speculative decoding accelerates autoregressive generation by pairing a small
@@ -43,5 +43,42 @@ steps taken by the target. Then
 Aggregate acceptance captures how much of the draft computation survives, while
 block efficiency measures how much useful drafted work is recovered per
 verifier step. These counter-based metrics complement wall-clock latency in the
-experiments, and they are less sensitive to incidental runtime noise than raw
-timing alone.
+experiments and are less sensitive to incidental runtime noise than raw timing
+alone.
+
+\subsection{Related Work}
+
+\paragraph{Improving speculative decoding.}
+Most speculative-decoding work treats low acceptance as a performance obstacle
+to be corrected. Online Speculative Decoding adapts the draft to the observed
+query distribution \citep{liu2023online}. Direct alignment methods train draft
+models to better match instruction-tuned targets \citep{goel2024direct}.
+AdaEDL predicts when low acceptance is likely and stops drafting early
+\citep{agrawal2024adaedl}. Judge Decoding redesigns the verification logic to
+go beyond raw model alignment \citep{bachmann2025judge}, while
+alignment-augmented decoding and HSD broaden the design space of verification
+and acceptance recovery \citep{wang2025alignment,zhou2026hsd}. ADSD studies
+the inverse problem: instead of repairing low acceptance, it treats verifier
+disagreement as the attack surface.
+
+\paragraph{Adversarial prompt optimization.}
+Outside speculative decoding, adversarial NLP has shown that short optimized
+token sequences can reliably manipulate model behavior. Universal adversarial
+triggers demonstrate that input-agnostic token strings can induce systematic
+failures across many examples \citep{wallace2019uat}. In aligned-chat settings,
+universal suffix attacks and evolutionary jailbreak search methods such as
+AutoDAN show that discrete prompt optimization can steer models toward harmful
+semantic outputs \citep{zou2023universal,liu2023autodan}. Those methods are
+well suited to output manipulation, where the goal is to change the semantic
+content of the response. Our setting is different: we optimize prompts to alter
+the \emph{systems behavior} of speculative verification itself. The target
+answer can remain correct while the verifier is forced to do substantially more
+work.
+
+\paragraph{Prompt-based inference-cost attacks.}
+The closest attack-style prior art is Engorgio, which constructs prompts that
+suppress \texttt{<EOS>} and induce abnormally long outputs in ordinary
+autoregressive decoding \citep{dong2024engorgio}. Our work is related in
+spirit but differs in mechanism. Engorgio attacks output length in standard
+decoding. ADSD attacks the acceptance process in speculative decoding by making
+draft proposals hard for the verifier to accept.

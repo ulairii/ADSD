@@ -5,112 +5,92 @@ large language model (LLM) serving. Among these methods, speculative decoding
 is especially attractive because it promises a rare combination: substantial
 speedup without changing the target model's output distribution
 \citep{leviathan2023speculative}. That guarantee, however, is semantic rather
-than operational. It says that the final distribution is preserved; it does not
-say that the resulting system is robust to adversarial inputs that manipulate
-the amount of verifier work required to realize that distribution.
+than operational. It says that the final answer distribution is preserved; it
+does not say that the serving stack is robust to adversarial inputs that
+increase the amount of verifier work required to realize that distribution.
 
-Speculative decoding accelerates LLM inference by
-letting a small draft model propose multiple tokens that are then verified by a
-larger target model in parallel \citep{leviathan2023speculative}. The resulting
-speedup is lossless at the output layer, but it is not free: it depends
-critically on the degree of alignment between the draft distribution and the
-target verifier. When draft-target agreement is high, long blocks of drafted
-tokens are accepted and throughput improves substantially. When agreement
-collapses, the verifier commits fewer drafted tokens, target-side correction
-work increases, and the latency benefits of speculative decoding shrink.
-
-Most prior work treats this acceptance bottleneck as an optimization problem to
-be fixed. Recent systems improve the draft, adapt draft length, redesign
-verification, or otherwise try to raise acceptance rates
+This distinction exposes a natural systems vulnerability. Speculative decoding
+achieves speedup only when a small draft model remains well aligned with a
+larger target verifier. When that alignment breaks down, drafted blocks are
+rejected, verifier intervention increases, and the expected latency gains can
+evaporate. Most prior work studies this acceptance bottleneck from the
+defensive side by improving draft-target alignment, modifying verification, or
+adapting draft length online
 \citep{liu2023online,goel2024direct,agrawal2024adaedl,bachmann2025judge,wang2025alignment,zhou2026hsd}.
-This paper studies the complementary adversarial question: can an attacker
-exploit the same acceptance bottleneck from the input side? In particular, can
-a short prompt prefix preserve user-visible task behavior while forcing the
-verifier into a substantially less efficient regime?
+We study the complementary adversarial question: can a short prompt prefix
+erase the efficiency gains of speculative decoding while preserving the
+user-visible task outcome?
 
-This attack surface is natural in deployment. The attacker does not need model
-weights, scheduler privileges, or a custom decoding stack at inference time.
-Instead, the attacker controls only the prompt text. Because speculative
-decoding ties latency directly to the relation between the draft distribution
-$q$ and the target distribution $p$, prompt-side inputs can act as
-systems-level levers: they can induce overconfident draft proposals that the
-target model repeatedly rejects, thereby converting speculative acceleration
-into additional verifier work.
+This attack surface is practical in deployment. The attacker does not need
+custom scheduler privileges or parameter access at inference time. Instead, the
+attacker controls only prompt text. Because speculative throughput depends
+directly on draft-target agreement, prompt-side inputs can act as systems-level
+levers: they can induce draft behavior that the target repeatedly corrects,
+thereby converting speculative acceleration into additional verifier work.
 
-The technical obstacle is discrete. Gradient-based prompt optimization operates
-most naturally over continuous token relaxations, but deployment requires a
-discrete projected prefix. The main question is therefore not simply whether a
-smooth surrogate can be written down, but when optimizing that surrogate yields
-a strong \emph{discrete} attack after projection. This continuous-to-discrete
-gap is the central methodological challenge for prompt-side attacks on
-speculative decoding, and the main methodological contribution of the paper is
-to make that gap explicit rather than treating it as an implementation detail.
+\begin{figure}[t]
+\centering
+\fbox{%
+  \begin{minipage}[c][1.55in][c]{0.95\linewidth}
+    \centering
+    \textbf{Placeholder: Threat-Model Figure}\\[0.5ex]
+    Benign speculative decoding versus adversarial prompt-side acceptance
+    collapse in a multi-tenant serving setting. The final version should show:
+    (i) attacker-controlled prefix insertion, (ii) draft-token proposal, (iii)
+    verifier rejection and correction, and (iv) the resulting throughput impact
+    on co-located requests.
+  \end{minipage}
+}
+\caption{Threat model overview. A prompt-bounded attacker does not modify model
+weights or decoding logic; instead, the attacker inserts a short prefix that
+collapses draft-target agreement and forces the speculative verifier to perform
+substantially more work.}
+\label{fig:threat-model}
+\end{figure}
 
-Our starting point is the token-wise verifier acceptance rule
-\[
-\alpha_i = \min\!\left(1, \frac{p(y_i \mid h_i)}{q(y_i \mid h_i)}\right),
-\]
-where $h_i$ is the speculative history and $y_i$ is the drafted token at step
-$i$. Under draft sampling, the one-step expected acceptance satisfies
-\[
-\mathbb{E}[\alpha_i] = 1 - \tv(p_i, q_i),
-\]
-which immediately motivates an adversarial objective: maximize early
-draft-target disagreement, since early verifier rejection is the most damaging
-to end-to-end speculative efficiency. We formalize this intuition with a
-continuous objective over relaxed prefixes, show that unconditional projection
-guarantees are impossible via a prompt-waywardness proposition, and prove a
-relaxation-gap bound under a TV-Lipschitz assumption that directly motivates a
-projection-distortion penalty in the implemented optimizer.
+The technical obstacle is discrete. Gradient-based prompt search is naturally
+continuous, but deployment requires a discrete text string. In practice, this
+means that naive continuous optimization can discover a strong relaxed attack
+that fails after projection back to tokens. Our central methodological claim is
+that this continuous-to-discrete projection gap must be treated as a first-class
+object. We therefore develop a theoretically bounded optimizer that
+explicitly penalizes projection distortion and ranks retained attacks by their
+behavior in the actual verifier pipeline.
 
-On the algorithmic side, we instantiate this theory in two stages. The first
-stage is a verifier-aligned soft-prefix optimizer that targets first-token
-collapse at the assistant boundary using a straight-through relaxed prefix, a
-soft-collapse term, TV, reverse KL, entropy sharpening, and an explicit
-projection-distortion penalty. The second stage strengthens the attack into a
-calibration-batch universal adversarial prefix optimized over target-generated
-multi-timestamp rollouts. This universal-prefix pipeline combines a weighted
-trajectory-level objective with a gradient-guided discrete seed-search stage,
-allowing the optimizer to discover stronger discrete initializations before
-continuous refinement.
+On the algorithmic side, we instantiate this idea in two stages. The first is
+a verifier-aligned soft-prefix attack that targets early verifier collapse at
+the assistant boundary. The second strengthens the attack into a
+calibration-batch universal prefix optimized across multiple prompts and
+multiple timestamps, with a gradient-guided discrete seed-search stage that
+improves the quality of the final projected attack.
 
-We evaluate the attack in the reproduced HSD workspace using
+We evaluate ADSD in the reproduced HSD workspace using
 \texttt{Qwen2.5-0.5B-Instruct-GPTQ-Int8} as the draft model and
-\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8} as the target model. The initial
-Palmetto soft-prefix search consistently recovers the same five-token discrete
-boundary attack across a sweep of projection-penalty strengths, reducing exact
-first-token acceptance from $\alpha_1 = 0.1597$ for the manual comparison seed
-to $\alpha_1 = 0.0288$ on the optimized search context. On a matched
-263-sample token-wise GSM8K benchmark, that boundary attack raises mean sample
-time from $23.10$s to $29.81$s while reducing aggregate acceptance from
-$0.597$ to $0.509$ and block efficiency from $5.832$ to $4.961$.
-
-The stronger result comes from the calibration-batch universal-prefix attack.
-The best accuracy-preserving universal prefix raises mean sample time to
-$38.61$s, lowers aggregate acceptance to $0.390$, lowers block efficiency to
-$3.731$, and reduces decoding speed to $51.68$, while matching the benign
-token-wise GSM8K accuracy exactly at $222/263$. In other words, a short
-prompt-side prefix can preserve task accuracy while extracting a large
-inference-cost penalty from a lossless speculative-decoding stack.
+\texttt{Qwen2.5-14B-Instruct-GPTQ-Int8} as the target model. On a matched
+263-sample token-wise GSM8K benchmark, the initial boundary attack raises mean
+sample time from $23.10$s to $29.81$s while reducing aggregate acceptance from
+$0.597$ to $0.509$ and block efficiency from $5.832$ to $4.961$. The stronger
+calibration-batch universal attack raises mean sample time to $38.61$s, lowers
+aggregate acceptance to $0.390$, lowers block efficiency to $3.731$, and
+reduces decoding speed to $51.68$, while matching the benign token-wise GSM8K
+accuracy exactly at $222/263$.
 
 Our contributions are:
 \begin{itemize}
-\item We formulate prompt-side speculative-decoding slowdown as a
-continuous-to-discrete adversarial optimization problem over verifier
-acceptance rather than output semantics.
-\item We prove a prompt-waywardness impossibility result and a relaxation-gap
-bound that makes the projection-distortion term in the optimizer
-theoretically explicit.
-\item We implement a verifier-aligned soft-prefix attack and a
-calibration-batch universal-prefix extension with gradient-guided discrete
-seed search, both of which are faithful to the released code path.
-\item We show on a reproduced HSD/Qwen stack that prompt-only attacks can
-materially degrade speculative efficiency, and that the strongest
-accuracy-preserving universal prefix raises end-to-end runtime by $67.1\%$ on a
-matched token-wise benchmark.
+\item \textbf{Theory.} We formulate prompt-side speculative slowdown as a
+continuous-to-discrete optimization problem, prove a prompt-waywardness
+impossibility result, and derive a relaxation-gap bound that justifies
+explicit projection-distortion control.
+\item \textbf{Algorithm.} We introduce ADSD, a verifier-aligned attack that
+combines bounded continuous optimization with discrete projection-aware model
+selection, and extend it to a calibration-batch universal-prefix pipeline with
+gradient-guided seed search.
+\item \textbf{Empirical results.} On a reproduced HSD/Qwen stack, we show that
+prompt-only attacks can materially degrade speculative efficiency, and that the
+strongest accuracy-preserving universal prefix raises end-to-end runtime by
+$67.1\%$ on a matched token-wise benchmark.
 \end{itemize}
 
-The broader message is that speculative decoding exposes a distinct
-prompt-controlled systems vulnerability. Lossless output semantics do not imply
-cost robustness. A user-controlled prefix can leave the final answer intact
+The broader message is simple. Lossless output semantics do not imply cost
+robustness. A short user-controlled prefix can leave the final answer intact
 while forcing the verifier to do substantially more work.

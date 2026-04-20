@@ -18,8 +18,9 @@ For full-run evaluation, the reproduced GSM8K evaluator is patched to save
 per-sample aggregate acceptance, block efficiency, drafted-token counts,
 target-step counts, and first-token acceptance traces in the same JSON artifact
 as the ordinary speculative-decoding counters. This instrumentation is what
-enables the matched token-wise benchmark in Section~4, including both the
-boundary attack and the calibration-batch universal-prefix comparisons.
+enables the matched token-wise benchmark in Section~\ref{sec:eval}, including
+both the boundary attack and the calibration-batch universal-prefix
+comparisons.
 
 The Palmetto submission scripts mirror the same attack configuration used in
 the local search, and expose sweeps over projection-penalty multipliers,

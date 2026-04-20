@@ -1,19 +1,20 @@
-\section{Threat Model and the Projection Obstacle}
+\section{Threat Model and Motivation}
 \label{sec:threat}
 
 We consider a white-box adversary that knows the target model, the draft
-model, the tokenizer, and the deployed speculative verification rule. The
-attacker may modify only a short assistant-boundary prefix in the prompt. The
-attacker cannot change model parameters, decoding temperature, system prompts,
-verification logic, scheduler behavior, or hardware placement at attack time.
+model, the tokenizer, and the deployed speculative verification rule. At
+runtime, however, the adversary remains strictly prompt-bounded: the attacker
+may modify only a short assistant-boundary prefix in the prompt. The attacker
+cannot change model parameters, decoding temperature, token limits, system
+prompts, verification logic, scheduler behavior, or hardware placement at
+attack time.
 
 The attacker seeks a discrete prefix $z \in \mathcal{V}^m$ that maximizes
 speculative inefficiency while preserving user-visible task quality. At the
-systems level, the attack objective is to increase the expected verifier work
-required per request. We operationalize this through counter-based metrics such
-as aggregate acceptance and block efficiency together with wall-clock latency.
-Formally, the attacker seeks a short prefix that solves a constrained problem
-of the form
+systems level, the objective is to increase the verifier work required per
+request. We operationalize this through counter-based metrics such as aggregate
+acceptance and block efficiency together with wall-clock latency. Formally, the
+attacker seeks a short prefix that solves a constrained problem of the form
 \[
 \max_{z \in \mathcal{V}^m} \;\; \mathcal{L}_{\mathrm{cost}}(z)
 \qquad
@@ -22,34 +23,21 @@ of the form
 \mathcal{Q}(z) \geq \mathcal{Q}_{\mathrm{benign}} - \delta,
 \]
 where $\mathcal{L}_{\mathrm{cost}}$ denotes speculative inefficiency and
-$\mathcal{Q}$ denotes user-visible task quality. The implemented attack uses a
-verifier-aligned surrogate of this objective by maximizing early draft-target
-disagreement, since early rejection is the most damaging to end-to-end
-speculative throughput.
+$\mathcal{Q}$ denotes user-visible task quality.
 
-To search over prompts, we relax the discrete prefix into a continuous prompt
-space. Let $E \in \mathbb{R}^{|\mathcal{V}| \times d}$ denote the shared token
-embedding matrix. A relaxed prefix is
-$U = (u_1, \dots, u_m)$, where each $u_t \in \Delta^{|\mathcal{V}|}$ is a
-simplex vector over the vocabulary and the corresponding relaxed embedding is
-\[
-e_t(U) = E^\top u_t.
-\]
-This relaxation makes gradient-based optimization possible, but deployment
-still requires a discrete projected prefix.
+Why does such an attack matter? In multi-tenant LLM serving, speculative
+decoding is deployed precisely because it increases throughput per GPU. When an
+adversarial prefix collapses verifier acceptance, the system is forced back
+toward a more sequential decoding regime. The immediate victim is the attacked
+request, but the operational consequence is broader: extra verifier work
+consumes shared accelerator time, reduces node throughput, and degrades the
+quality of service seen by co-located users. In that sense, prompt-side
+acceptance collapse functions as a resource-exhaustion attack on the
+speculative serving stack, even though the adversary changes only the input
+text and not the serving infrastructure itself.
 
-The resulting difficulty is not merely practical; it is structural.
-
-\begin{proposition}[Prompt Waywardness]
-\label{prop:waywardness}
-For any finite token embedding space with at least two tokens and any
-$\delta > 0$, there exists a smooth objective $C$ over the convex hull of token
-embeddings and a relaxed optimizer $U^*$ such that $U^*$ lies within distance
-$\delta$ of a discrete token cell, yet the nearest-neighbor projection
-$\Pi(U^*)$ is arbitrarily suboptimal among all discrete prefixes.
-\end{proposition}
-
-Prompt waywardness formalizes the projection obstacle for adversarial prompt
-search: proximity in embedding space does not imply attack quality after
-projection. Any principled attack therefore needs more than a smooth surrogate;
-it must explicitly control the relaxed-to-discrete gap.
+The remaining challenge is methodological. The attacker needs a discrete prefix
+that works in the deployed verifier, but the most powerful search tools are
+continuous. The next section addresses that obstacle directly by formalizing
+the projection gap and constructing an optimizer that treats it as part of the
+attack objective rather than as an afterthought.
