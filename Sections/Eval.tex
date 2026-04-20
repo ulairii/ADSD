@@ -26,7 +26,11 @@ the HSD evaluator and are computed from the saved speculative traces
 \texttt{draft\_eval}, \texttt{sample\_length}, and \texttt{total\_step}
 \citep{zhou2026hsd}. This distinction matters: runtime is a real systems
 measurement, while the counter-based metrics provide hardware-agnostic views of
-the underlying verifier behavior.
+the underlying verifier behavior. Evaluating at batch size one is deliberate
+and follows standard speculative-decoding practice
+\citep{leviathan2023speculative,zhou2026hsd}: the object of study here is the
+per-sequence verifier mechanism itself, not downstream batching or router
+scheduling.
 
 \subsection{Metrics}
 

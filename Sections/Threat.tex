@@ -25,16 +25,16 @@ attacker seeks a short prefix that solves a constrained problem of the form
 where $\mathcal{L}_{\mathrm{cost}}$ denotes speculative inefficiency and
 $\mathcal{Q}$ denotes user-visible task quality.
 
-Why does such an attack matter? In multi-tenant LLM serving, speculative
-decoding is deployed precisely because it increases throughput per GPU. When an
-adversarial prefix collapses verifier acceptance, the system is forced back
-toward a more sequential decoding regime. The immediate victim is the attacked
-request, but the operational consequence is broader: extra verifier work
-consumes shared accelerator time, reduces node throughput, and degrades the
-quality of service seen by co-located users. In that sense, prompt-side
-acceptance collapse functions as a resource-exhaustion attack on the
-speculative serving stack, even though the adversary changes only the input
-text and not the serving infrastructure itself.
+Why does such an attack matter? Modern LLM deployments rely on speculative
+decoding to reduce latency and lower the compute or energy cost per generated
+token. When an adversarial prefix collapses verifier acceptance, the system is
+forced back toward a more sequential decoding regime. The resulting failure is
+algorithmic rather than infrastructural: the prompt turns an acceleration
+mechanism into a worst-case execution trap for the attacked request. In cloud
+settings, this degradation threatens latency predictability and service-level
+objectives while inflating per-request compute cost. In on-device or edge
+settings, it functions as an energy-exhaustion attack that drains bounded local
+resources without requiring any change to model weights or serving logic.
 
 The remaining challenge is methodological. The attacker needs a discrete prefix
 that works in the deployed verifier, but the most powerful search tools are

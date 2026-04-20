@@ -25,7 +25,12 @@ sampling, the one-step expected acceptance satisfies
 where $\tv$ is total variation distance. This identity makes the attack surface
 explicit. Any prompt that increases early draft-target disagreement will, in
 expectation, reduce verifier acceptance and therefore diminish speculative
-speedup.
+speedup. At the same time, it also reveals the methodological obstacle that
+drives the rest of the paper: maximizing verifier disagreement over a deployed
+prompt requires optimization over discrete tokens, whereas the most informative
+search signals live in a continuous relaxation. The attack problem is
+therefore not just to increase TV, but to do so in a way that survives
+projection back to text.
 
 The systems metrics used throughout the paper are derived from the same
 acceptance process. Let accepted drafted tokens denote the number of draft
@@ -48,18 +53,33 @@ alone.
 
 \subsection{Related Work}
 
-\paragraph{Improving speculative decoding.}
-Most speculative-decoding work treats low acceptance as a performance obstacle
-to be corrected. Online Speculative Decoding adapts the draft to the observed
-query distribution \citep{liu2023online}. Direct alignment methods train draft
-models to better match instruction-tuned targets \citep{goel2024direct}.
-AdaEDL predicts when low acceptance is likely and stops drafting early
-\citep{agrawal2024adaedl}. Judge Decoding redesigns the verification logic to
-go beyond raw model alignment \citep{bachmann2025judge}, while
-alignment-augmented decoding and HSD broaden the design space of verification
-and acceptance recovery \citep{wang2025alignment,zhou2026hsd}. ADSD studies
-the inverse problem: instead of repairing low acceptance, it treats verifier
-disagreement as the attack surface.
+\paragraph{Alignment-centric speculative enhancements.}
+One major line of work treats low acceptance as a model-alignment problem.
+Online Speculative Decoding adapts the draft model to the observed query
+distribution \citep{liu2023online}. Direct alignment methods train the draft
+to better match the target on instruction-following behavior
+\citep{goel2024direct}, and related alignment-aware designs further improve
+acceptance by narrowing the draft-target discrepancy under benign workloads
+\citep{wang2025alignment}. The unifying assumption in this line is that poor
+acceptance reflects an incidental mismatch to be corrected so that speculative
+speedup is restored.
+
+\paragraph{Verification-centric speculative enhancements.}
+A second line of work treats low acceptance as a verification problem rather
+than purely a draft-training problem. AdaEDL predicts when acceptance is
+likely to fail and shortens drafting adaptively \citep{agrawal2024adaedl}.
+Judge Decoding redesigns acceptance logic beyond simple model agreement
+\citep{bachmann2025judge}, and HSD enlarges the verifier design space by
+recovering useful work even when the draft and target do not align perfectly
+\citep{zhou2026hsd}. These systems are more flexible than alignment-only
+approaches, but they still study speculative decoding under the default
+assumption of benign, in-distribution inputs.
+
+Taken together, both paradigms seek to preserve acceptance under ordinary
+serving conditions. That leaves a common blind spot: neither line asks whether
+an adversary can intentionally manipulate prompt text to collapse acceptance
+and convert speculative acceleration into additional verifier work. ADSD is
+designed precisely for that setting.
 
 \paragraph{Adversarial prompt optimization.}
 Outside speculative decoding, adversarial NLP has shown that short optimized
