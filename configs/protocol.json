@@ -1,0 +1,33 @@
+{
+  "dataset": {
+    "source": "openai/grade-school-math",
+    "revision": "3101c7d5072418e28b9008a6636bde82a006892c",
+    "test_sha256": "3730d312f6e3440559ace48831e51066acaca737f6eabec99bccb9e4b3c39d14",
+    "train_sha256": "17f347dc51477c50d4efb83959dbb7c56297aba886e5544ee2aaed3024813465"
+  },
+  "models": {
+    "target": {
+      "id": "Qwen/Qwen2.5-14B-Instruct-GPTQ-Int8",
+      "revision": "801d1799b049765aebe175acb5d529c372e7b1b9"
+    },
+    "draft": {
+      "id": "Qwen/Qwen2.5-0.5B-Instruct-GPTQ-Int8",
+      "revision": "c68601e5424e69cdaa6e073673e3c94db27b4397"
+    },
+    "file_manifest": "model_hashes.json"
+  },
+  "runtime": {
+    "executed_manifest_sha256": "9f8517167cc556413c554f2d08176889e8e9de3fb2efa3b78434741914cfbf7f",
+    "content_sha256": "5c025926136b5dd8210a50c34ffc814124cb7a39916f71fcc5b8f236563749f6",
+    "evaluator_sha256": "21ecac3f35d3b8b2abf50203c1025979feea414c5ced5b983032955e871bf116"
+  },
+  "evaluation": {
+    "samples": 263,
+    "offset": 0,
+    "gpu": "A10080GB",
+    "temperature": 1,
+    "gamma": 10,
+    "cap": 512,
+    "seed": 2027
+  }
+}

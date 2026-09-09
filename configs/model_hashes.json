@@ -1,0 +1,98 @@
+{
+  "target": {
+    "LICENSE": {
+      "bytes": 11343,
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"
+    },
+    "README.md": {
+      "bytes": 6394,
+      "sha256": "8b1fc6e4125d3e21803e37d3c48788f4749320c126dca741b501375c12b15ea0"
+    },
+    "config.json": {
+      "bytes": 1262,
+      "sha256": "dfd553a9ad2a0e23617a5f51cf526143817f34e02da4cb2f45427995902ba679"
+    },
+    "generation_config.json": {
+      "bytes": 243,
+      "sha256": "fd01df57931815767cb12a9f0fe479a1ed9a5b2a4e7a203e751e54e5b01669dc"
+    },
+    "merges.txt": {
+      "bytes": 1671853,
+      "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5"
+    },
+    "model-00001-of-00005.safetensors": {
+      "bytes": 3949469120,
+      "sha256": "dc965c4457c64d46c442e35f4f4f6f48d1069067bc37af7f922fcd155f5bef83"
+    },
+    "model-00002-of-00005.safetensors": {
+      "bytes": 3946867616,
+      "sha256": "2c8848992abdc2f03d0a56c8f90560412fbf11baa669ec5bcbc0df1519699900"
+    },
+    "model-00003-of-00005.safetensors": {
+      "bytes": 3946867656,
+      "sha256": "85b59d47f1e727439f9868c789d9fa5397815bd68d5852cabc58c360afb1540a"
+    },
+    "model-00004-of-00005.safetensors": {
+      "bytes": 3246058688,
+      "sha256": "e851bed9254af2614d33ad704bb49afc6471809b57f9ef496256b34f2b1806d8"
+    },
+    "model-00005-of-00005.safetensors": {
+      "bytes": 1557135488,
+      "sha256": "848ac3bba2aa8bf735df255506eb8aa4ed60c2b1f32b01236cfde132c109fcab"
+    },
+    "model.safetensors.index.json": {
+      "bytes": 129342,
+      "sha256": "588bf5006f2e9559612d667914aba8d1e34a39eb82eb5acb999f5af0b3646f77"
+    },
+    "tokenizer.json": {
+      "bytes": 7031645,
+      "sha256": "22bfef58b74d2fa40f402ac0c8d638d9e54d12137da2e2c7e9f32a1e7534e42f"
+    },
+    "tokenizer_config.json": {
+      "bytes": 7305,
+      "sha256": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583"
+    },
+    "vocab.json": {
+      "bytes": 2776833,
+      "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+    }
+  },
+  "draft": {
+    "LICENSE": {
+      "bytes": 11343,
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"
+    },
+    "README.md": {
+      "bytes": 5301,
+      "sha256": "3d55b2d91284ce14b0a020b832b6355d42e2535c614cfa5f599626dad0251c32"
+    },
+    "config.json": {
+      "bytes": 1258,
+      "sha256": "11b18edd688fcd3b82ddb28167e3d05f3a91f61811c519e18966ddfcf3be458e"
+    },
+    "generation_config.json": {
+      "bytes": 242,
+      "sha256": "6f2b7ca6221c9e6f064e3c19eac13678ece5cd9d26c7757fd826b486ef5e1212"
+    },
+    "merges.txt": {
+      "bytes": 1671853,
+      "sha256": "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5"
+    },
+    "model.safetensors": {
+      "bytes": 639695016,
+      "sha256": "e9cf674aa18a44201141736ce00bb4617aa21b5a75bdd25f21cc9dc9c5768a61"
+    },
+    "tokenizer.json": {
+      "bytes": 7031645,
+      "sha256": "22bfef58b74d2fa40f402ac0c8d638d9e54d12137da2e2c7e9f32a1e7534e42f"
+    },
+    "tokenizer_config.json": {
+      "bytes": 7305,
+      "sha256": "5b5d4f65d0acd3b2d56a35b56d374a36cbc1c8fa5cf3b3febbbfabf22f359583"
+    },
+    "vocab.json": {
+      "bytes": 2776833,
+      "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "samples": 263,
+  "hardware": "NVIDIA A100 80GB PCIe",
+  "suffix": {
+    "suffix_text": "第三季度>`;\n kotlinx，则.setBackgroundResource",
+    "suffix_token_ids": [
+      116964,
+      61563,
+      27452,
+      95053,
+      67962
+    ]
+  },
+  "evaluation": {
+    "samples": 263,
+    "offset": 0,
+    "shards": [
+      [
+        0,
+        88
+      ],
+      [
+        88,
+        88
+      ],
+      [
+        176,
+        87
+      ]
+    ],
+    "seeds_by_shard": [
+      2027,
+      2115,
+      2203
+    ],
+    "seed_policy": "Each shard uses seed 2027 + its starting question index, shared by benign and ADSD conditions.",
+    "gpu": "A10080GB",
+    "temperature": 1,
+    "gamma": 10,
+    "cap": 512
+  },
+  "results": {
+    "benign": {
+      "samples": 263,
+      "native_accuracy": 0.8212927756653993,
+      "continuation_last_number_accuracy": 0.8555133079847909,
+      "latency_seconds": 26.38454968666396,
+      "block_efficiency_gamma_matched": 6.020861989912884,
+      "block_efficiency_all_blocks": 5.957933090427294,
+      "speed_gamma_scaled": 79.96361814652873,
+      "throughput_real_tokens_per_second": 7.77632771374041,
+      "acceptance_global": 0.5042616986153691,
+      "generated_tokens_mean": 205.17490494296578,
+      "capped_requests": 1,
+      "gamma_matched_blocks": 8724
+    },
+    "adsd": {
+      "samples": 263,
+      "native_accuracy": 0.870722433460076,
+      "continuation_last_number_accuracy": 0.8897338403041825,
+      "latency_seconds": 42.7716269438711,
+      "block_efficiency_gamma_matched": 3.5845274180214934,
+      "block_efficiency_all_blocks": 3.55683244171455,
+      "speed_gamma_scaled": 49.639520718628646,
+      "throughput_real_tokens_per_second": 4.7874742081992245,
+      "acceptance_global": 0.2606848254267533,
+      "generated_tokens_mean": 204.7680608365019,
+      "capped_requests": 1,
+      "gamma_matched_blocks": 14516
+    }
+  },
+  "latency_ratio": 1.6210861072792904,
+  "slowdown_percent": 62.10861072792903
+}

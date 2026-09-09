@@ -1,0 +1,47 @@
+{
+  "status": "search_complete",
+  "initial_suffix_ids": [
+    12548,
+    279,
+    1790,
+    7735,
+    1172
+  ],
+  "parameters": {
+    "init_text": "Complete the next symbol only:\n\\boxed{",
+    "init_random": false,
+    "require_text_roundtrip": true,
+    "collapse_weight": 1.6,
+    "target_preserve_weight": 1.0,
+    "calibration_size": 10,
+    "calibration_offset": 1,
+    "calibration_stride": 100,
+    "trajectory_tokens": 64,
+    "beam_size": 4,
+    "topk": 8,
+    "sweeps": 5,
+    "seed": 0
+  },
+  "best_projected": {
+    "suffix_text": "第三季度>`;\n kotlinx，则.setBackgroundResource",
+    "suffix_token_ids": [
+      116964,
+      61563,
+      27452,
+      95053,
+      67962
+    ],
+    "weighted_trajectory_tv": 0.32125474214553834,
+    "weighted_reverse_kl": 3.7044765949249268,
+    "weighted_target_preserve_kl": 0.775710380077362,
+    "mean_first_alpha_1": 0.20000139161207908,
+    "mean_collapse_score": 10.598010533708198,
+    "mean_rollout_soft_collapse": 3.8194307327270507
+  },
+  "source_result_sha256": "43cb36959bfafce1a934055e760c97e41344a581f58ec25428d8f6f2b073503d",
+  "search_audit": {
+    "exact_objective_evaluations": 733,
+    "gradient_evaluations": 97
+  },
+  "matches_default_suffix": true
+}
